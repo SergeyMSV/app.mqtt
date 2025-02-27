@@ -22,13 +22,13 @@ int main()
 		tcp::socket Socket(ioc);
 		boost::asio::connect(Socket, Ep);
 
-		utils::packet_MQTT::tPacketCONNECT Pack(false, 10, "my_client_id", "my_will_topic", "my_will_message"); // 1883
+		utils::packet_MQTT::tPacketCONNECT PackCONNECT(false, 10, "my_client_id", "my_will_topic", "my_will_message"); // 1883
 
 		//utils::packet_MQTT::tPacketCONNECT Pack("my_client_id", "my_will_topic", "my_will_message", "rw", "readwrite"); // 1884; read / write access to the # topic hierarchy
 		//utils::packet_MQTT::tPacketCONNECT Pack("my_client_id", "my_will_topic", "my_will_message", "ro", "readonly"); // 1884; read only access to the # topic hierarchy
 		//utils::packet_MQTT::tPacketCONNECT Pack("my_client_id", "my_will_topic", "my_will_message", "wo", "writeonly"); // 1884; write only access to the # topic hierarchy
 
-		auto PackVector = Pack.ToVector();
+		auto PackVector = PackCONNECT.ToVector();
 		Socket.write_some(boost::asio::buffer(PackVector));
 		//Socket.write_some(boost::asio::buffer(PackVector.data(), PackVector.size()));
 
@@ -75,9 +75,17 @@ int main()
 				int dfgdfg = 234;
 			}
 
-			Sleep(5000);
+			Sleep(PackCONNECT.GetVariableHeader()->KeepAlive.Value * 1000);
 
-			Socket.write_some(boost::asio::buffer(utils::packet_MQTT::tPacketPINGREQ().ToVector()));
+			static std::uint32_t CounterDISCONNECT = 0;
+			if (++CounterDISCONNECT == 10)
+			{
+				Socket.write_some(boost::asio::buffer(utils::packet_MQTT::tPacketDISCONNECT().ToVector()));
+			}
+			else
+			{
+				Socket.write_some(boost::asio::buffer(utils::packet_MQTT::tPacketPINGREQ().ToVector()));
+			}
 
 
 			if (Error == boost::asio::error::eof)
