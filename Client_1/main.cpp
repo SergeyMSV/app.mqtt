@@ -17,12 +17,12 @@ int main()
 		tcp::resolver resolver(ioc);
 
 		tcp::resolver::results_type Ep = resolver.resolve("test.mosquitto.org", "1883"); // MQTT, unencrypted, unauthenticated
-		//tcp::resolver::results_type Endpoints = resolver.resolve("test.mosquitto.org", "1884"); // 1884 : MQTT, unencrypted, authenticated
+		//tcp::resolver::results_type Ep = resolver.resolve("test.mosquitto.org", "1884"); // 1884 : MQTT, unencrypted, authenticated
 
 		tcp::socket Socket(ioc);
 		boost::asio::connect(Socket, Ep);
 
-		utils::packet_MQTT::tPacketCONNECT Pack("my_client_id", "my_will_topic", "my_will_message"); // 1883
+		utils::packet_MQTT::tPacketCONNECT Pack(false, 10, "my_client_id", "my_will_topic", "my_will_message"); // 1883
 
 		//utils::packet_MQTT::tPacketCONNECT Pack("my_client_id", "my_will_topic", "my_will_message", "rw", "readwrite"); // 1884; read / write access to the # topic hierarchy
 		//utils::packet_MQTT::tPacketCONNECT Pack("my_client_id", "my_will_topic", "my_will_message", "ro", "readonly"); // 1884; read only access to the # topic hierarchy
@@ -42,22 +42,42 @@ int main()
 
 			if (SizeRcv)
 			{
-
 				utils::packet_MQTT::tSpan Span(Buffer, SizeRcv);
 				auto Res = utils::packet_MQTT::TestPacket(Span);
 				if (!Res.has_value())
 					break;
-				if (*Res == utils::packet_MQTT::tControlPacketType::CONNACK)
+
+				Span = utils::packet_MQTT::tSpan(Buffer, SizeRcv);
+
+				switch (*Res)
 				{
-					Span = utils::packet_MQTT::tSpan(Buffer, SizeRcv);
+				case utils::packet_MQTT::tControlPacketType::CONNACK:
+				{
 					auto Pack_parsed = utils::packet_MQTT::tPacketCONNACK::Parse(Span);
 					if (Pack_parsed.has_value())
 					{
-						std::cout << "CONNACK: " << (int)Pack_parsed->GetVariableHeader().value().ConnectReturnCode << '\n';
+						std::cout << "CONNACK: " << Pack_parsed->ToString(true) << '\n';
 					}
+					break;
+				}
+				case utils::packet_MQTT::tControlPacketType::PINGRESP:
+				{
+					static std::uint32_t Counter = 0;
+					std::cout << "PINGRESP - counter: "<< ++Counter << '\n';
+					break;
+				}
+				default:
+				{
+					std::cout << "XZ\n";
+					break;
+				}
 				}
 				int dfgdfg = 234;
 			}
+
+			Sleep(5000);
+
+			Socket.write_some(boost::asio::buffer(utils::packet_MQTT::tPacketPINGREQ().ToVector()));
 
 
 			if (Error == boost::asio::error::eof)
