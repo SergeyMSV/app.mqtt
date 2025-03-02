@@ -22,11 +22,13 @@ int main()
 		tcp::socket Socket(ioc);
 		boost::asio::connect(Socket, Ep);
 
-		utils::packet_MQTT::tPacketCONNECT PackCONNECT(false, 10, "my_client_id", "my_will_topic", "my_will_message"); // 1883
+		utils::packet_MQTT::tPacketCONNECT PackCONNECT(false, 10, "my_client_id", utils::packet_MQTT::tQoS::AtLeastOnceDelivery, true, "my_will_topic", "my_will_message"); // 1883
+		
+		//utils::packet_MQTT::tPacketCONNECT PackCONNECT("my_client_id", utils::packet_MQTT::tQoS::AtLeastOnceDelivery, true,"my_will_topic", "my_will_message", "rw", "readwrite"); // 1884; read / write access to the # topic hierarchy
+		//utils::packet_MQTT::tPacketCONNECT PackCONNECT("my_client_id", utils::packet_MQTT::tQoS::AtLeastOnceDelivery, true,"my_will_topic", "my_will_message", "ro", "readonly"); // 1884; read only access to the # topic hierarchy
+		//utils::packet_MQTT::tPacketCONNECT PackCONNECT("my_client_id", utils::packet_MQTT::tQoS::AtLeastOnceDelivery, true,"my_will_topic", "my_will_message", "wo", "writeonly"); // 1884; write only access to the # topic hierarchy
 
-		//utils::packet_MQTT::tPacketCONNECT Pack("my_client_id", "my_will_topic", "my_will_message", "rw", "readwrite"); // 1884; read / write access to the # topic hierarchy
-		//utils::packet_MQTT::tPacketCONNECT Pack("my_client_id", "my_will_topic", "my_will_message", "ro", "readonly"); // 1884; read only access to the # topic hierarchy
-		//utils::packet_MQTT::tPacketCONNECT Pack("my_client_id", "my_will_topic", "my_will_message", "wo", "writeonly"); // 1884; write only access to the # topic hierarchy
+		std::cout << PackCONNECT.ToString() << '\n';
 
 		auto PackVector = PackCONNECT.ToVector();
 		Socket.write_some(boost::asio::buffer(PackVector));
@@ -56,14 +58,18 @@ int main()
 					auto Pack_parsed = utils::packet_MQTT::tPacketCONNACK::Parse(Span);
 					if (Pack_parsed.has_value())
 					{
-						std::cout << "CONNACK: " << Pack_parsed->ToString(true) << '\n';
+						std::cout << Pack_parsed->ToString() << '\n';
 					}
 					break;
 				}
 				case utils::packet_MQTT::tControlPacketType::PINGRESP:
 				{
-					static std::uint32_t Counter = 0;
-					std::cout << "PINGRESP - counter: "<< ++Counter << '\n';
+					auto Pack_parsed = utils::packet_MQTT::tPacketPINGRESP::Parse(Span);
+					if (Pack_parsed.has_value())
+					{
+						static std::uint32_t Counter = 0;
+						std::cout << Pack_parsed->ToString() <<" - counter: " << ++Counter << '\n';
+					}
 					break;
 				}
 				default:
@@ -80,11 +86,15 @@ int main()
 			static std::uint32_t CounterDISCONNECT = 0;
 			if (++CounterDISCONNECT == 10)
 			{
-				Socket.write_some(boost::asio::buffer(utils::packet_MQTT::tPacketDISCONNECT().ToVector()));
+				auto Pack = utils::packet_MQTT::tPacketDISCONNECT();
+				std::cout << Pack.ToString() << '\n';
+				Socket.write_some(boost::asio::buffer(Pack.ToVector()));
 			}
 			else
 			{
-				Socket.write_some(boost::asio::buffer(utils::packet_MQTT::tPacketPINGREQ().ToVector()));
+				auto Pack = utils::packet_MQTT::tPacketPINGREQ();
+				std::cout << Pack.ToString() << '\n';
+				Socket.write_some(boost::asio::buffer(Pack.ToVector()));
 			}
 
 

@@ -3,43 +3,45 @@
 // 2024-11-22
 // C++23
 // 
-// Specification: mqtt-v3.1.1-os.pdf (MQTT Version 3.1.1 OASIS Standard 29 October 2014)
+// Specification: mqtt-v3.1.1.pdf (MQTT Version 3.1.1 Plus Errata 01; OASIS Standard Incorporating Approved Errata 01; 10 December 2015)
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Find out:
 // 1. packet MQTT can be the same for both MQTT-3.1.1 and MQTT-5.0
 //    or compatible part can be defined separately
 
+#include <libConfig.h>
+
 #include <expected> // C++ 23
 #include <optional>
-//#include <queue>
 #include <span> // C++ 20
 #include <string>
-//#include <utility>
 #include <vector>
 
 #include <cstdint>
-
-//#include <iostream> // TEST
 
 namespace utils
 {
 namespace packet_MQTT
 {
-// ... you cannot use a string that would encode to more than 65535 bytes.
-// Unless stated otherwise all UTF-8 encoded strings can have any length in the range 0 to 65535 bytes.
+// 178 Text fields in the Control Packets described later are encoded as UTF-8 strings. ...
+// 187 Unless stated otherwise all UTF-8 encoded strings can have any length in the range 0 to 65535 bytes.
 
-// The character data in a UTF-8 encoded string MUST be well-formed UTF-8 as defined by the Unicode 190 specification [Unicode] and restated in RFC 3629 [RFC3629].
-// In particular this data MUST NOT include 191 encodings of code points between U+D800 and U+DFFF.
-// If a Server or Client receives a Control Packet 192 containing ill-formed UTF-8 it MUST close the Network Connection [MQTT-1.5.3-1].
+// 190 The character data in a UTF-8 encoded string MUST be well-formed UTF-8 as defined by the Unicode
+// 191 specification [Unicode] and restated in RFC 3629 [RFC3629]. In particular this data MUST NOT include
+// 192 encodings of code points between U+D800 and U+DFFF. If a Server or Client receives a Control Packet
+// 193 containing ill-formed UTF-8 it MUST close the Network Connection [MQTT-1.5.3-1].
 
-// A UTF-8 encoded string MUST NOT include an encoding of the null character U + 0000. If a receiver 195 (Server or Client) receives a Control Packet containing U + 0000 it MUST close the Network 196 Connection[MQTT - 1.5.3 - 2].
+// 195 A UTF-8 encoded string MUST NOT include an encoding of the null character U + 0000. If a receiver
+// 196 (Server or Client) receives a Control Packet containing U + 0000 it MUST close the Network
+// 197 Connection[MQTT-1.5.3-2].
 
-// A UTF-8 encoded sequence 0xEF 0xBB 0xBF is always to be interpreted to mean U+FEFF ("ZERO 207 WIDTH NO-BREAK SPACE") wherever it appears in a string and MUST NOT be skipped over or stripped 208 off by a packet receiver [MQTT-1.5.3-3].
+// 207 A UTF-8 encoded sequence 0xEF 0xBB 0xBF is always to be interpreted to mean U+FEFF ("ZERO
+// 208 WIDTH NO-BREAK SPACE") wherever it appears in a string and MUST NOT be skipped over or stripped
+// 209 off by a packet receiver [MQTT-1.5.3-3].
 
 enum class tControlPacketType
 {
-	//Reserved_1,		// Forbidden
 	CONNECT = 1,	// Client to Server							Client request to connect to Server
 	CONNACK,		// Server to Client							Connect acknowledgment
 	PUBLISH,		// Client to Server or Server to Client		Publish message
@@ -54,8 +56,9 @@ enum class tControlPacketType
 	PINGREQ,		// Client to Server							PING request
 	PINGRESP,		// Server to Client							PING response
 	DISCONNECT,		// Client to Server							Client is disconnecting
-	//Reserved_2		// Forbidden
 };
+
+std::string ToString(tControlPacketType value);
 
 enum class tError
 {
@@ -80,8 +83,10 @@ enum class tQoS : std::uint8_t // CONNECT (WillQoS), PUBLISH
 	AtMostOnceDelivery,
 	AtLeastOnceDelivery,
 	ExactlyOnceDelivery,
-	Reserved_MustNotBeUsed
+	//Reserved_MustNotBeUsed
 };
+
+std::string ToString(tQoS value);
 
 enum class tConnectReturnCode : std::uint8_t // CONNECT
 {
@@ -93,6 +98,8 @@ enum class tConnectReturnCode : std::uint8_t // CONNECT
 	ConnectionRefused_NotAuthorized, // The Client is not authorized to connect.
 	Reserved // 6-255 Reserved for future use.
 };
+
+std::string ToString(tConnectReturnCode value);
 
 class tSpan : public std::span<const std::uint8_t>
 {
@@ -153,8 +160,8 @@ namespace hidden
 {
 
 // MQTT 3.1.1
-constexpr char DefaultProtocolName[] = "MQTT"; // The string, its offset and length will not be changed by future versions of the MQTT specification.
-constexpr std::uint8_t DefaultProtocolLevel = 4; // The value of the Protocol Level field for the version 3.1.1 of the protocol is 4 (0x04).
+constexpr char DefaultProtocolName[] = "MQTT"; // 397 The string, its offset and length will not be changed by future versions of the MQTT specification.
+constexpr std::uint8_t DefaultProtocolLevel = 4; // 408 ... The value of the Protocol Level field for the version 3.1.1 of the protocol is 4 (0x04).
 
 // MQTT 3.1
 //constexpr char DefaultProtocolName[] = "MQIsdp";
@@ -305,7 +312,13 @@ public:
 		return Parse(DataSpan);
 	}
 
-	std::string ToString(bool extended = false) const { return m_VariableHeader->ToString(extended); }
+	std::string ToString() const
+	{
+		std::string Res(packet_MQTT::ToString(static_cast<tControlPacketType>(m_FixedHeader.Field.ControlPacketType)));
+		if (m_VariableHeader.has_value())
+			Res += " - " + m_VariableHeader->ToString();
+		return Res;
+	}
 
 	std::vector<std::uint8_t> ToVector() const
 	{
@@ -334,6 +347,8 @@ struct tVariableHeaderEmpty
 {
 	static std::expected<tVariableHeaderEmpty, tError> Parse(const hidden::tFixedHeader& fixedHeader, tSpan& data) { return tVariableHeaderEmpty(); }
 
+	std::string ToString() const { return{}; }
+
 	std::vector<std::uint8_t> ToVector() const { return {}; }
 
 	bool operator==(const tVariableHeaderEmpty& value) const = default;
@@ -354,8 +369,8 @@ struct tPayloadEmpty
 
 struct tVariableHeaderCONNECT
 {
-	tString ProtocolName; // The string, its offset and length will not be changed by future versions of the MQTT specification.
-	std::uint8_t ProtocolLevel; // The value of the Protocol Level field for the version 3.1.1 of the protocol is 4 (0x04).
+	tString ProtocolName;
+	std::uint8_t ProtocolLevel;
 
 	union tConnectFlags
 	{
@@ -372,13 +387,13 @@ struct tVariableHeaderCONNECT
 		std::uint8_t Value = 0;
 	}ConnectFlags;
 
-	// 529 The Keep Alive is a time interval measured in seconds.
+	// 538 The Keep Alive is a time interval measured in seconds.
 	// 
 	// 538 If the Keep Alive value is non-zero and the Server does not receive a Control Packet from the Client
-	// 539 within one and a half times the Keep Alive time period, it MUST disconnect the Network Connection to the
-	// 540 Client as if the network had failed[MQTT-3.1.2-24].
+	// 547 within one and a half times the Keep Alive time period, it MUST disconnect the Network Connection to the
+	// 548 Client as if the network had failed [MQTT-3.1.2-24].
 	// 
-	// 551 ... The maximum value is 18 hours 12 minutes and 15 seconds.
+	// 560 ... The maximum value is 18 hours 12 minutes and 15 seconds.
 	tUInt16 KeepAlive = 0;
 
 	tVariableHeaderCONNECT() :ProtocolName(hidden::DefaultProtocolName), ProtocolLevel(hidden::DefaultProtocolLevel) {}
@@ -387,18 +402,32 @@ struct tVariableHeaderCONNECT
 
 	std::size_t GetSize() const { return ProtocolName.GetSize() + 4; }
 
+	std::string ToString() const;
+
 	std::vector<std::uint8_t> ToVector() const;
 
 	bool operator==(const tVariableHeaderCONNECT& val) const;
 };
 
-struct tPayloadCONNECT // The payload of the CONNECT Packet contains one or more length-prefixed fields, whose presence is determined by the flags in the variable header.
+struct tPayloadCONNECT
 {
-	// The Client Identifier (ClientId) identifies the Client to the Server. 
-	// The Server MUST allow ClientIds which are between 1 and 23 UTF - 8 encoded bytes in length, and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
+	// 566 The payload of the CONNECT Packet contains one or more length - prefixed fields, whose presence is
+	// 567 determined by the flags in the variable header.
+
+	// 570 The Client Identifier (ClientId) identifies the Client to the Server. 
+	//
+	// 579 The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that
+	// 580 contain only the characters
+	// 581 "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" [MQTT-3.1.3-5].
 	tString ClientId;
 
-	// These fields, if present, MUST appear in the order Client Identifier, Will Topic, Will Message, User Name, Password
+	// 567 ... These fields, if present, MUST appear in the order Client
+	// 568 Identifier, Will Topic, Will Message, User Name, Password [MQTT-3.1.3-1].
+
+	// 483 If the Will Flag is set to 1 this indicates that, if the Connect request is accepted, a Will Message MUST be
+	// 484 stored on the Server and associated with the Network Connection.The Will Message MUST be published
+	// 485 when the Network Connection is subsequently closed unless the Will Message has been deleted by the
+	// 486 Server on receipt of a DISCONNECT Packet[MQTT - 3.1.2 - 8].
 	std::optional<tString> WillTopic;
 	std::optional<tString> WillMessage;
 
@@ -434,7 +463,7 @@ struct tVariableHeaderCONNACK
 
 	static std::size_t GetSize() { return 2; }
 
-	std::string ToString(bool extended = false) const;
+	std::string ToString() const;
 
 	std::vector<std::uint8_t> ToVector() const;
 
@@ -450,6 +479,8 @@ union tFixedHeaderPUBLISHFlags
 {
 	struct
 	{
+		// Normally if a publisher publishes a message to a topic, and no one is subscribed to that topic the message is simply discarded by the broker.
+		// However the publisher can tell the broker to keep the last message on that topic by setting the retained message flag.
 		std::uint8_t RETAIN : 1;
 		std::uint8_t QoS : 2;
 		std::uint8_t DUP : 1;
@@ -461,7 +492,7 @@ union tFixedHeaderPUBLISHFlags
 struct tVariableHeaderPUBLISH
 {
 	tString TopicName;
-	std::optional<tUInt16> PacketId; // The Packet Identifier field is only present in PUBLISH Packets where the QoS level is 1 or 2.
+	std::optional<tUInt16> PacketId; // 809 The Packet Identifier field is only present in PUBLISH Packets where the QoS level is 1 or 2.
 
 	tVariableHeaderPUBLISH() {}
 
@@ -490,7 +521,7 @@ struct tPayloadPUBLISH
 
 struct tVariableHeaderPUBACK
 {
-	tUInt16 PacketId; // This contains the Packet Identifier from the PUBLISH Packet that is being acknowledged.
+	tUInt16 PacketId; // 855 This contains the Packet Identifier from the PUBLISH Packet that is being acknowledged.
 
 	tVariableHeaderPUBACK() = default;
 
@@ -518,13 +549,17 @@ class tPacketCONNECT : public hidden::tPacket<hidden::tVariableHeaderCONNECT, hi
 {
 public:
 	tPacketCONNECT() :tPacket(GetFixedHeader()) {}
-	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password);
-	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, const std::string& willTopic, const std::string& willMessage)
-		:tPacketCONNECT(cleanSession, keepAlive, clientId, willTopic, willMessage, "", "")	{}
+	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password);
+	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage)
+		:tPacketCONNECT(cleanSession, keepAlive, clientId, willQos, willRetain, willTopic, willMessage, "", "")	{}
+	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId)
+		:tPacketCONNECT(cleanSession, keepAlive, clientId, tQoS::AtMostOnceDelivery, false, "", "", "", "") {}
+	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, const std::string& userName, const std::string& password)
+		:tPacketCONNECT(cleanSession, keepAlive, clientId, tQoS::AtMostOnceDelivery, false, "", "", userName, password) {}
 
 private:
 	void SetClientId(std::string value);
-	void SetWill(const std::string& topic, const std::string& message);
+	void SetWill(tQoS qos, bool retain, const std::string& topic, const std::string& message);
 	void SetUser(const std::string& name, const std::string& password);
 
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::CONNECT); }
@@ -555,7 +590,7 @@ public:
 	tPacketPUBLISH(bool dup, bool retain, const std::string& topicName);
 	tPacketPUBLISH(bool dup, bool retain, const std::string& topicName, const std::vector<std::uint8_t>& payloadData);
 
-	// The Packet Identifier field is only present in PUBLISH Packets where the QoS level is 1 or 2.
+	// 809 The Packet Identifier field is only present in PUBLISH Packets where the QoS level is 1 or 2.
 	static bool IsPacketIdPresent(std::uint8_t flags);
 
 private:

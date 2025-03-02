@@ -5,6 +5,66 @@ namespace utils
 namespace packet_MQTT
 {
 
+template<typename T>
+typename std::enable_if<std::is_trivially_copyable<T>::value, std::string>::type ToString(T code, const std::string& msg)
+{
+	return std::string("[") + std::to_string(static_cast<int>(code)) + "] " + msg;
+}
+
+std::string ToString(bool state)
+{
+	return state ? "true" : "false";
+}
+
+std::string ToString(tControlPacketType value)
+{
+	switch (value)
+	{
+	case tControlPacketType::CONNECT: return "CONNECT";
+	case tControlPacketType::CONNACK: return "CONNACK";
+	case tControlPacketType::PUBLISH: return "PUBLISH";
+	case tControlPacketType::PUBACK: return "PUBACK";
+	case tControlPacketType::PUBREC: return "PUBREC";
+	case tControlPacketType::PUBREL: return "PUBREL";
+	case tControlPacketType::PUBCOMP: return "PUBCOMP";
+	case tControlPacketType::SUBSCRIBE: return "SUBSCRIBE";
+	case tControlPacketType::SUBACK: return "SUBACK";
+	case tControlPacketType::UNSUBSCRIBE: return "UNSUBSCRIBE";
+	case tControlPacketType::UNSUBACK: return "UNSUBACK";
+	case tControlPacketType::PINGREQ: return "PINGREQ";
+	case tControlPacketType::PINGRESP: return "PINGRESP";
+	case tControlPacketType::DISCONNECT: return "DISCONNECT";
+	}
+	return "";
+}
+
+std::string ToString(tQoS value)
+{
+	switch (value)
+	{
+	case tQoS::AtMostOnceDelivery: return ToString(value, "At most once delivery");
+	case tQoS::AtLeastOnceDelivery: return ToString(value, "At least once delivery");
+	case tQoS::ExactlyOnceDelivery: return ToString(value, "Exactly once delivery");
+	}
+	return ToString(value, "ERROR");
+}
+
+std::string ToString(tConnectReturnCode value)
+{
+	switch (value)
+	{
+	case tConnectReturnCode::ConnectionAccepted: return ToString(value, "Connection Accepted");
+	case tConnectReturnCode::ConnectionRefused_UnacceptableProtocolVersion: return ToString(value, "Connection Refused, unacceptable protocol version");
+	case tConnectReturnCode::ConnectionRefused_IdentifierRejected: return ToString(value, "Connection Refused, identifier rejected");
+	case tConnectReturnCode::ConnectionRefused_ServerUnavailable: return ToString(value, "Connection Refused, Server unavailable");
+	case tConnectReturnCode::ConnectionRefused_BadUserNameOrPassword: return ToString(value, "Connection Refused, bad user name or password");
+	case tConnectReturnCode::ConnectionRefused_NotAuthorized: return ToString(value, "Connection Refused, not authorized");
+	}
+	return ToString(value, "ERROR");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 std::expected<tUInt16, tError> tUInt16::Parse(tSpan& data)
 {
 	if (data.size() < 2)
@@ -135,6 +195,23 @@ std::expected<tVariableHeaderCONNECT, tError> tVariableHeaderCONNECT::Parse(cons
 	return VHeader;
 }
 
+std::string tVariableHeaderCONNECT::ToString() const
+{
+	std::string Res("Protocol");
+	Res += " name: " + ProtocolName;
+	Res += ", level: " + std::to_string(ProtocolLevel);
+	Res += "; Clean session: " + packet_MQTT::ToString(ConnectFlags.Field.CleanSession);
+	Res += "; Will";
+	Res += " flag: " + packet_MQTT::ToString(ConnectFlags.Field.WillFlag);
+	Res += ", QoS: " + packet_MQTT::ToString(static_cast<tQoS>(ConnectFlags.Field.WillQoS));
+	Res += ", retain: " + packet_MQTT::ToString(ConnectFlags.Field.WillRetain);
+	Res += "; User";
+	Res += " name: " + packet_MQTT::ToString(ConnectFlags.Field.UserNameFlag);
+	Res += ", password: " + packet_MQTT::ToString(ConnectFlags.Field.PasswordFlag);
+	Res += "; Keep alive: " + std::to_string(KeepAlive.Value) + " s.";
+	return Res;
+}
+
 std::vector<std::uint8_t> tVariableHeaderCONNECT::ToVector() const
 {
 	std::vector<std::uint8_t> Data = ProtocolName.ToVector();
@@ -219,40 +296,17 @@ std::expected<tVariableHeaderCONNACK, tError> tVariableHeaderCONNACK::Parse(cons
 	return VHeader;
 }
 
-std::string tVariableHeaderCONNACK::ToString(bool extended) const
+std::string tVariableHeaderCONNACK::ToString() const
 {
 	std::string Res("ReturnCode: ");
-
-	if (extended)
-	{
-		switch (ConnectReturnCode)
-		{
-		case tConnectReturnCode::ConnectionAccepted: Res += "0x00 Connection Accepted"; break;
-		case tConnectReturnCode::ConnectionRefused_UnacceptableProtocolVersion: Res += "0x01 Connection Refused, unacceptable protocol version"; break;
-		case tConnectReturnCode::ConnectionRefused_IdentifierRejected: Res += "0x02 Connection Refused, identifier rejected"; break;
-		case tConnectReturnCode::ConnectionRefused_ServerUnavailable: Res += "0x03 Connection Refused, Server unavailable"; break;
-		case tConnectReturnCode::ConnectionRefused_BadUserNameOrPassword: Res += "0x04 Connection Refused, bad user name or password"; break;
-		case tConnectReturnCode::ConnectionRefused_NotAuthorized: Res += "0x05 Connection Refused, not authorized"; break;
-		}
-	}
-	else
-	{
-		Res += std::to_string(static_cast<int>(ConnectReturnCode));
-	}
+	Res += packet_MQTT::ToString(ConnectReturnCode);
 
 	if (ConnectReturnCode != tConnectReturnCode::ConnectionAccepted)
 		return Res;
 
 	Res += "; Session Present: ";
-	if (extended)
-	{
-		Res += ConnectAcknowledgeFlags.Field.SessionPresent ? "1 Continued" : "0 Clean";
-	}
-	else
-	{
-		Res += std::to_string(static_cast<int>(ConnectAcknowledgeFlags.Field.SessionPresent));
-	}
-
+	Res += ConnectAcknowledgeFlags.Field.SessionPresent ?
+			packet_MQTT::ToString(ConnectAcknowledgeFlags.Field.SessionPresent, "Continued") : packet_MQTT::ToString(ConnectAcknowledgeFlags.Field.SessionPresent, "Clean");
 	return Res;
 }
 
@@ -310,10 +364,10 @@ bool tVariableHeaderPUBLISH::operator==(const tVariableHeaderPUBLISH& val) const
 
 std::expected<tPayloadPUBLISH, tError> tPayloadPUBLISH::Parse(const tVariableHeaderPUBLISH& variableHeader, tSpan& data)
 {
-	// 3.3.3 Payload PAGE 36
-	// The Payload contains the Application Message that is being published. The content and format of the data is application specific.
-	// The length of the payload can be calculated by subtracting the length of the variable header from the Remaining Length field
-	// that is in the Fixed Header.It is valid for a PUBLISH Packet to contain a zero length payload.
+	// 819 The Payload contains the Application Message that is being published.The content and format of the
+	// 820 data is application specific.The length of the payload can be calculated by subtracting the length of the
+	// 821 variable header from the Remaining Length field that is in the Fixed Header.It is valid for a PUBLISH
+	// 822 Packet to contain a zero length payload.
 	tPayloadPUBLISH Payload{};
 	Payload.Data = std::vector<std::uint8_t>(data.begin(), data.end());
 	return Payload;
@@ -338,7 +392,7 @@ std::expected<tVariableHeaderPUBACK, tError> tVariableHeaderPUBACK::Parse(const 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-tPacketCONNECT::tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
+tPacketCONNECT::tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
 	:tPacket(GetFixedHeader())
 {
 	m_VariableHeader = hidden::tVariableHeaderCONNECT{};
@@ -349,42 +403,45 @@ tPacketCONNECT::tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const
 	m_Payload = hidden::tPayloadCONNECT{};
 
 	SetClientId(clientId);
-	SetWill(willTopic, willMessage);
+	SetWill(willQos, willRetain, willTopic, willMessage);
 	SetUser(userName, password);
 }
 
 
 void tPacketCONNECT::SetClientId(std::string value)
 {
-	// 570 The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that
-	// 571 contain only the characters
-	// 572 "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	// 579 The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that
+	// 580 contain only the characters
+	// 581 "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" [MQTT-3.1.3-5].
 	constexpr std::size_t ClientIdSizeMax = 23;
 	if (value.size() > ClientIdSizeMax)
 		value.resize(ClientIdSizeMax);
-	// 574 The Server MAY allow ClientId’s that contain more than 23 encoded bytes.The Server MAY allow
-	// 575 ClientId’s that contain characters not included in the list given above.
+	// 583 The Server MAY allow ClientId’s that contain more than 23 encoded bytes. The Server MAY allow
+	// 584 ClientId’s that contain characters not included in the list given above.
 	// 
-	// 577 A Server MAY allow a Client to supply a ClientId that has a length of zero bytes, however if it does so the
-	// 578 Server MUST treat this as a special case and assign a unique ClientId to that Client. It MUST then
-	// 579 process the CONNECT packet as if the Client had provided that unique ClientId [MQTT-3.1.3-6].
+	// 586 A Server MAY allow a Client to supply a ClientId that has a length of zero bytes, however if it does so the
+	// 587 Server MUST treat this as a special case and assign a unique ClientId to that Client. It MUST then
+	// 588 process the CONNECT packet as if the Client had provided that unique ClientId [MQTT-3.1.3-6].
 	// 
-	// 581 If the Client supplies a zero - byte ClientId, the Client MUST also set CleanSession to 1 [MQTT-3.1.3-7].
+	// 590 If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1 [MQTT-3.1.3-7].
 	m_Payload->ClientId = value;
 }
 
-void tPacketCONNECT::SetWill(const std::string& topic, const std::string& message)
+void tPacketCONNECT::SetWill(tQoS qos, bool retain, const std::string& topic, const std::string& message)
 {
 	m_VariableHeader->ConnectFlags.Field.WillFlag = !topic.empty() && !message.empty();
 
 	if (m_VariableHeader->ConnectFlags.Field.WillFlag)
 	{
+		m_VariableHeader->ConnectFlags.Field.WillQoS = static_cast<std::uint8_t>(qos);
+		m_VariableHeader->ConnectFlags.Field.WillRetain = retain ? 1 : 0;
 		m_Payload->WillTopic = topic;
 		m_Payload->WillMessage = message;
 	}
 	else
 	{
-		m_VariableHeader->ConnectFlags.Field.WillQoS = 0; // If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00) [MQTT-3.1.2-13].*/
+		m_VariableHeader->ConnectFlags.Field.WillQoS = 0; // 510 If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00) [MQTT-3.1.2-13].
+		m_VariableHeader->ConnectFlags.Field.WillRetain = 0; // 518 If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0[MQTT - 3.1.2 - 15].
 		m_Payload->WillTopic.reset();
 		m_Payload->WillMessage.reset();
 	}
@@ -392,8 +449,11 @@ void tPacketCONNECT::SetWill(const std::string& topic, const std::string& messag
 
 void tPacketCONNECT::SetUser(const std::string& name, const std::string& password)
 {
+	// 532 If the Password Flag is set to 0, a password MUST NOT be present in the payload [MQTT-3.1.2-20].
+	// 532 If the Password Flag is set to 1, a password MUST be present in the payload [MQTT-3.1.2-21].
+	// 533 If the User Name Flag is set to 0, the Password Flag MUST be set to 0 [MQTT-3.1.2-22].
 	m_VariableHeader->ConnectFlags.Field.UserNameFlag = !name.empty();
-	m_VariableHeader->ConnectFlags.Field.PasswordFlag = !name.empty() && !password.empty(); // [TBD] verify it (write here reference to the doc.)
+	m_VariableHeader->ConnectFlags.Field.PasswordFlag = !name.empty() && !password.empty();
 
 	if (m_VariableHeader->ConnectFlags.Field.UserNameFlag)
 	{
@@ -445,7 +505,6 @@ tPacketPUBLISH::tPacketPUBLISH(bool dup, bool retain, const std::string& topicNa
 	m_Payload->Data = payloadData;
 }
 
-// The Packet Identifier field is only present in PUBLISH Packets where the QoS level is 1 or 2.
 bool tPacketPUBLISH::IsPacketIdPresent(std::uint8_t flags)
 {
 	hidden::tFixedHeaderPUBLISHFlags Flags;

@@ -20,5 +20,6 @@
     <ClInclude Include="..\LIB.Utils\utilsPacketMQTT.h">
       <Filter>LIB.Utils</Filter>
     </ClInclude>
+    <ClInclude Include="libConfig.h" />
   </ItemGroup>
 </Project>
