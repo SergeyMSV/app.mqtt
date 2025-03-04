@@ -58,8 +58,6 @@ enum class tControlPacketType
 	DISCONNECT,		// Client to Server							Client is disconnecting
 };
 
-std::string ToString(tControlPacketType value);
-
 enum class tError
 {
 	None,
@@ -78,17 +76,14 @@ enum class tError
 	ProtocolLevel,
 };
 
-enum class tQoS : std::uint8_t // CONNECT (WillQoS), PUBLISH
+enum class tQoS : std::uint8_t
 {
 	AtMostOnceDelivery,
 	AtLeastOnceDelivery,
 	ExactlyOnceDelivery,
-	//Reserved_MustNotBeUsed
 };
 
-std::string ToString(tQoS value);
-
-enum class tConnectReturnCode : std::uint8_t // CONNECT
+enum class tConnectReturnCode : std::uint8_t
 {
 	ConnectionAccepted,
 	ConnectionRefused_UnacceptableProtocolVersion, // The Server does not support the level of the MQTT protocol requested by the Client.
@@ -99,7 +94,7 @@ enum class tConnectReturnCode : std::uint8_t // CONNECT
 	Reserved // 6-255 Reserved for future use.
 };
 
-std::string ToString(tConnectReturnCode value);
+template<typename T> std::string ToString(T value);
 
 class tSpan : public std::span<const std::uint8_t>
 {
@@ -184,15 +179,29 @@ union tFixedHeader
 
 	tControlPacketType GetControlPacketType() const { return static_cast<tControlPacketType>(Field.ControlPacketType); }
 
+	std::string ToString() const;
+
 	bool operator==(const tFixedHeader& val) const { return Value == val.Value; }
 };
 
-constexpr tFixedHeader MakeFixedHeader(tControlPacketType type, std::uint8_t flags = 0)
+constexpr tFixedHeader MakeFixedHeader(tControlPacketType type, std::uint8_t flags)
 {
 	tFixedHeader Header{};
 	Header.Field.ControlPacketType = static_cast<std::uint8_t>(type);
 	Header.Field.Flags = flags;
 	return Header;
+}
+
+constexpr tFixedHeader MakeFixedHeader(tControlPacketType type)
+{
+	std::uint8_t Flags = 0;
+	if (type == tControlPacketType::PUBREL ||
+		type == tControlPacketType::SUBSCRIBE ||
+		type == tControlPacketType::UNSUBSCRIBE)
+	{
+		Flags = 0x02;
+	}
+	return MakeFixedHeader(type, Flags);
 }
 
 using tRemainingLengthParseExp = std::expected<std::uint32_t, tError>;
@@ -314,10 +323,10 @@ public:
 
 	std::string ToString() const
 	{
-		std::string Res(packet_MQTT::ToString(static_cast<tControlPacketType>(m_FixedHeader.Field.ControlPacketType)));
+		std::string Str = m_FixedHeader.ToString();
 		if (m_VariableHeader.has_value())
-			Res += " - " + m_VariableHeader->ToString();
-		return Res;
+			Str += "; - " + m_VariableHeader->ToString();
+		return Str;
 	}
 
 	std::vector<std::uint8_t> ToVector() const
@@ -380,7 +389,9 @@ struct tVariableHeaderCONNECT
 			std::uint8_t CleanSession : 1;
 			std::uint8_t WillFlag : 1;
 			std::uint8_t WillQoS : 2; // [TBD] find out how it works
-			std::uint8_t WillRetain : 1;
+			// Normally if a publisher publishes a message to a topic, and no one is subscribed to that topic the message is simply discarded by the broker.
+			// However the publisher can tell the broker to keep the last message on that topic by setting the retained message flag.
+			std::uint8_t WillRetain : 1; 
 			std::uint8_t PasswordFlag : 1;
 			std::uint8_t UserNameFlag : 1;
 		}Field;
@@ -500,6 +511,8 @@ struct tVariableHeaderPUBLISH
 
 	std::size_t GetSize() const { return TopicName.GetSize() + 2; }
 
+	std::string ToString() const;
+
 	std::vector<std::uint8_t> ToVector() const;
 
 	bool operator==(const tVariableHeaderPUBLISH& val) const;
@@ -528,6 +541,8 @@ struct tVariableHeaderPUBACK
 	static std::expected<tVariableHeaderPUBACK, tError> Parse(const hidden::tFixedHeader& fixedHeader, tSpan& data);
 
 	static std::size_t GetSize() { return 2; } // For the PUBACK Packet this has the value 2.
+
+	std::string ToString() const;
 
 	std::vector<std::uint8_t> ToVector() const { return PacketId.ToVector(); }
 
