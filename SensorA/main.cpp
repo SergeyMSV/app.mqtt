@@ -11,7 +11,7 @@
 using boost::asio::ip::tcp;
 //using utilsMQTT = utils::packet_MQTT;
 
-void ThreadSensorHandler(std::promise<int>& promise)
+void ThreadSensorHandler(std::promise<int> promise)
 {
 	boost::asio::io_context ioc;
 
@@ -144,7 +144,7 @@ int main()
 	std::promise<int> ThreadSensorPromise;
 	std::future<int> ThreadSensorFuture = ThreadSensorPromise.get_future();
 
-	std::thread ThreadSensor(ThreadSensorHandler, std::ref(ThreadSensorPromise));
+	std::thread ThreadSensor(ThreadSensorHandler, std::move(ThreadSensorPromise));
 
 	try
 	{
