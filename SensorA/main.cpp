@@ -1,13 +1,17 @@
-#include <array>
+//#include <array>
+#include <future>
 #include <iostream>
+#include <thread>
+
 #include <boost/asio.hpp>
 
+#include <utilsExits.h>
 #include <utilsPacketMQTT.h>
 
 using boost::asio::ip::tcp;
 //using utilsMQTT = utils::packet_MQTT;
 
-int main()
+void ThreadSensorHandler(std::promise<int>& promise)
 {
 	boost::asio::io_context ioc;
 
@@ -124,10 +128,38 @@ int main()
 			//std::cout.write(buf.data(), len);
 		}
 	}
-	catch (std::exception& e)
+	catch (...)
 	{
-		std::cerr << e.what() << std::endl;
+		promise.set_exception(std::current_exception());
+		//std::cerr << e.what() << std::endl;
 	}
 
-	return 0;
+	//return 0;
+}
+
+int main()
+{
+	int ExitCode = utils::exit_code::EX_OK;
+
+	std::promise<int> ThreadSensorPromise;
+	std::future<int> ThreadSensorFuture = ThreadSensorPromise.get_future();
+
+	std::thread ThreadSensor(ThreadSensorHandler, std::ref(ThreadSensorPromise));
+
+	try
+	{
+		ExitCode = ThreadSensorFuture.get();
+	}
+	catch (std::exception& ex)
+	{
+		std::cerr << ex.what() << '\n';
+
+		// g_DataSetMainControl.Thread_GNSS_State = tDataSetMainControl::tStateGNSS::Exit; notify all the threads that it's time to exit
+
+		ExitCode = utils::exit_code::EX_IOERR;
+	}
+
+	ThreadSensor.join();
+
+	return ExitCode;
 }

@@ -21,5 +21,11 @@
       <Filter>LIB.Utils</Filter>
     </ClInclude>
     <ClInclude Include="libConfig.h" />
+    <ClInclude Include="..\LIB.Utils\utilsBase.h">
+      <Filter>LIB.Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LIB.Utils\utilsExits.h">
+      <Filter>LIB.Utils</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
