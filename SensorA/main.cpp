@@ -5,6 +5,7 @@
 
 #include <boost/asio.hpp>
 
+#include <utilsException.h>
 #include <utilsExits.h>
 #include <utilsPacketMQTT.h>
 
@@ -13,6 +14,17 @@ using boost::asio::ip::tcp;
 
 void ThreadSensorHandler(std::promise<int> promise)
 {
+	try
+	{
+		THROW_RUNTIME_ERROR("smth wrong");
+	}
+	catch (...)
+	{
+		promise.set_exception(std::current_exception());
+	}
+	return;
+	////////////////////////////////
+
 	boost::asio::io_context ioc;
 
 	try
@@ -145,6 +157,9 @@ int main()
 	std::future<int> ThreadSensorFuture = ThreadSensorPromise.get_future();
 
 	std::thread ThreadSensor(ThreadSensorHandler, std::move(ThreadSensorPromise));
+
+	Sleep(10000);
+	std::cout << "PREVED MEDVED\n";
 
 	try
 	{
