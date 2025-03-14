@@ -12,7 +12,7 @@
 using boost::asio::ip::tcp;
 //using utilsMQTT = utils::packet_MQTT;
 
-int ThreadSensorHandler(tcp::socket& socket)
+int TaskConnectHandler(tcp::socket& socket)
 //void ThreadSensorHandler(std::promise<int> promise)
 {
 	//try
@@ -166,10 +166,9 @@ int main()
 		boost::asio::connect(Socket, Ep);
 	//}
 	
-	std::packaged_task<int(tcp::socket&)> Task1(ThreadSensorHandler);
-	std::future<int> ThreadSensorFuture = Task1.get_future();
-
-	std::thread ThreadSensor(std::move(Task1), std::ref(Socket));
+	std::packaged_task<int(tcp::socket&)> TaskConnect(TaskConnectHandler);
+	std::future<int>TaskConnectFuture = TaskConnect.get_future();
+	std::thread TaskConnectThread(std::move(TaskConnect), std::ref(Socket));
 
 	//std::promise<int> ThreadSensorPromise;
 	//std::future<int> ThreadSensorFuture = ThreadSensorPromise.get_future();
@@ -181,7 +180,7 @@ int main()
 
 	try
 	{
-		ExitCode = ThreadSensorFuture.get();
+		ExitCode = TaskConnectFuture.get();
 	}
 	catch (std::exception& ex)
 	{
@@ -192,7 +191,7 @@ int main()
 		ExitCode = utils::exit_code::EX_IOERR;
 	}
 
-	ThreadSensor.join();
+	TaskConnectThread.join();
 
 	return ExitCode;
 }
