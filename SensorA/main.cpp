@@ -84,9 +84,14 @@ int main()
 		boost::asio::connect(Socket, Ep);
 	//}
 	
-	std::packaged_task<void(tcp::socket&)> TaskConnect(TaskConnectHandler);
-	std::future<void>TaskConnectFuture = TaskConnect.get_future();
-	std::thread TaskConnectThread(std::move(TaskConnect), std::ref(Socket));
+	//std::packaged_task<void(tcp::socket&)> TaskConnect(TaskConnectHandler);
+	//std::future<void>TaskConnectFuture = TaskConnect.get_future();
+	//std::thread TaskConnectThread(std::move(TaskConnect), std::ref(Socket));
+
+	//std::future<void>TaskConnectFuture = std::async(std::launch::async, TaskConnectHandler, std::ref(Socket));
+
+	std::future<void>TaskConnectFuture = std::async(std::launch::deferred, TaskConnectHandler, std::ref(Socket));
+
 
 	//std::promise<int> ThreadSensorPromise;
 	//std::future<int> ThreadSensorFuture = ThreadSensorPromise.get_future();
@@ -111,7 +116,7 @@ int main()
 		ExitCode = utils::exit_code::EX_IOERR;
 	}
 
-	TaskConnectThread.join();
+	//TaskConnectThread.join();
 
 	return ExitCode;
 }
