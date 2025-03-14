@@ -12,20 +12,21 @@
 using boost::asio::ip::tcp;
 //using utilsMQTT = utils::packet_MQTT;
 
-void ThreadSensorHandler(std::promise<int> promise)
+int ThreadSensorHandler(tcp::socket& socket)
+//void ThreadSensorHandler(std::promise<int> promise)
 {
-	try
-	{
+	//try
+	//{
 		THROW_RUNTIME_ERROR("smth wrong");
-	}
-	catch (...)
-	{
-		promise.set_exception(std::current_exception());
-	}
-	return;
+	//}
+	//catch (...)
+	//{
+	//	promise.set_exception(std::current_exception());
+	//}
+	return 21;
 	////////////////////////////////
 
-	boost::asio::io_context ioc;
+/*	boost::asio::io_context ioc;
 
 	try
 	{
@@ -144,7 +145,7 @@ void ThreadSensorHandler(std::promise<int> promise)
 	{
 		promise.set_exception(std::current_exception());
 		//std::cerr << e.what() << std::endl;
-	}
+	}*/
 
 	//return 0;
 }
@@ -153,10 +154,27 @@ int main()
 {
 	int ExitCode = utils::exit_code::EX_OK;
 
-	std::promise<int> ThreadSensorPromise;
-	std::future<int> ThreadSensorFuture = ThreadSensorPromise.get_future();
+	//try
+	//{
+		boost::asio::io_context ioc;
 
-	std::thread ThreadSensor(ThreadSensorHandler, std::move(ThreadSensorPromise));
+		tcp::resolver Resolver(ioc);
+		tcp::resolver::results_type Ep = Resolver.resolve("test.mosquitto.org", "1883"); // MQTT, unencrypted, unauthenticated
+		//tcp::resolver::results_type Ep = resolver.resolve("test.mosquitto.org", "1884"); // 1884 : MQTT, unencrypted, authenticated
+
+		tcp::socket Socket(ioc);
+		boost::asio::connect(Socket, Ep);
+	//}
+	
+	std::packaged_task<int(tcp::socket&)> Task1(ThreadSensorHandler);
+	std::future<int> ThreadSensorFuture = Task1.get_future();
+
+	std::thread ThreadSensor(std::move(Task1), std::ref(Socket));
+
+	//std::promise<int> ThreadSensorPromise;
+	//std::future<int> ThreadSensorFuture = ThreadSensorPromise.get_future();
+
+	//std::thread ThreadSensor(ThreadSensorHandler, std::move(ThreadSensorPromise));
 
 	Sleep(10000);
 	std::cout << "PREVED MEDVED\n";
