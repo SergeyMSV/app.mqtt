@@ -614,7 +614,7 @@ std::vector<std::uint8_t> tPayloadUNSUBSCRIBE::ToVector() const
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 tPacketCONNECT::tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
-	:tPacket(GetFixedHeader())
+	:tPacketBase(GetFixedHeader())
 {
 	m_VariableHeader = hidden::tVariableHeaderCONNECT{};
 	m_VariableHeader->ConnectFlags.Field.CleanSession = cleanSession ? 1 : 0;
@@ -695,7 +695,7 @@ void tPacketCONNECT::SetUser(const std::string& name, const std::string& passwor
 }
 
 tPacketPUBLISH::tPacketPUBLISH(bool dup, bool retain, const std::string& topicName, tQoS qos, tUInt16 packetId)
-	:tPacket(GetFixedHeader(dup, qos, retain))
+	:tPacketBase(GetFixedHeader(dup, qos, retain))
 {
 	m_VariableHeader = hidden::tVariableHeaderPUBLISH{};
 	m_VariableHeader->TopicName = topicName;
@@ -712,7 +712,7 @@ tPacketPUBLISH::tPacketPUBLISH(bool dup, bool retain, const std::string& topicNa
 }
 
 tPacketPUBLISH::tPacketPUBLISH(bool dup, bool retain, const std::string& topicName)
-	:tPacket(GetFixedHeader(dup, tQoS::AtMostOnceDelivery, retain))
+	:tPacketBase(GetFixedHeader(dup, tQoS::AtMostOnceDelivery, retain))
 {
 	m_VariableHeader = hidden::tVariableHeaderPUBLISH{};
 	m_VariableHeader->TopicName = topicName;

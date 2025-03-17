@@ -13,7 +13,7 @@
 
 using boost::asio::ip::tcp;
 
-void TaskConnectHandler(tcp::socket& socket);
+void TaskConnectionHandler(tcp::socket& socket);
 
 int main()
 {
@@ -33,7 +33,7 @@ int main()
 	
 	try
 	{
-		std::future<void>TaskConnectFuture = std::async(std::launch::async, TaskConnectHandler, std::ref(Socket));
+		std::future<void>TaskConnectionFuture = std::async(std::launch::async, TaskConnectionHandler, std::ref(Socket));
 		//std::future<void>TaskConnectFuture = std::async(std::launch::deferred, TaskConnectHandler, std::ref(Socket)); // a task is not started by wait_for(..), it'll be deferred forever
 
 		//std::future<void>TaskMeasureFuture = std::async(std::launch::async, TaskMeasureHandler);
@@ -51,7 +51,7 @@ int main()
 
 		do
 		{
-			Status = TaskConnectFuture.wait_for(std::chrono::milliseconds(1));
+			Status = TaskConnectionFuture.wait_for(std::chrono::milliseconds(1));
 			switch (Status)
 			{
 			case std::future_status::deferred:
@@ -72,7 +72,8 @@ int main()
 		//std::future<void>TaskPublishFuture = std::async(std::launch::async, TaskPublishHandler, std::ref(Socket), TaskMeasureFuture.get());// MeasureData);
 		//TaskPublishFuture.get();
 
-		TaskConnectFuture.wait();
+		//TaskConnectionFuture.wait(); // it doesn't catch an exception occured
+		TaskConnectionFuture.get();
 
 		//ExitCode = TaskConnectFuture.get();
 	}

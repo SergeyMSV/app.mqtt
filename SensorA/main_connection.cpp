@@ -12,9 +12,7 @@
 #include <utilsPacketMQTT.h>
 
 using boost::asio::ip::tcp;
-//using namespace utils::packet;
 namespace mqtt = utils::packet::mqtt;
-//namespace mqtt = utils::packet_MQTT;
 
 std::vector<std::uint8_t> g_ReceiveBuffer(128);
 //std::atomic<bool> g_Exit = false;
@@ -36,35 +34,11 @@ std::optional<tReceivePacketResult> ReceivePacket(tcp::socket& socket, std::vect
 	return tReceivePacketResult{ *Res, mqtt::tSpan(buffer, SizeRcv) };
 }
 
-//std::size_t ReceivePacket(tcp::socket& socket, utils::packet_MQTT::tControlPacketType& packetType)
-//{
-//	std::vector<std::uint8_t> Buffer(128);
-//
-//	boost::system::error_code Error;
-//
-//	//for (;;)
-//	//{
-//		std::size_t SizeRcv = socket.read_some(boost::asio::buffer(Buffer), Error);
-//		if (SizeRcv)
-//		{
-//			utils::packet_MQTT::tSpan Span(Buffer, SizeRcv);
-//			auto Res = utils::packet_MQTT::TestPacket(Span);
-//			if (!Res.has_value())
-//				THROW_RUNTIME_ERROR("PREVED: NO DATA 1");
-//			packetType = *Res;
-//			return SizeRcv;
-//		}
-//	//}
-//}
-
-void TaskConnectHandler(tcp::socket& socket)
-//utils::packet_MQTT::tPacketCONNACK TaskConnectHandler(tcp::socket& socket)
+void TaskTransactionHandler(tcp::socket& socket, const mqtt::tPacket& packet, mqtt::tControlPacketType ackType)
 {
-	mqtt::tPacketCONNECT PackCONNECT(false, 10, "duper_star", mqtt::tQoS::AtLeastOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
+	std::cout << packet.ToString() << '\n';
 
-	std::cout << PackCONNECT.ToString() << '\n';
-
-	auto PackVector = PackCONNECT.ToVector();
+	auto PackVector = packet.ToVector();
 
 	socket.write_some(boost::asio::buffer(PackVector));
 
@@ -82,4 +56,35 @@ void TaskConnectHandler(tcp::socket& socket)
 	std::cout << Pack_parsed->ToString() << '\n';
 
 	//return static_cast<utils::packet_MQTT::tPacketCONNACK>(Pack_parsed.value());
+}
+
+void TaskConnectionHandler(tcp::socket& socket)
+{
+	//std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+	//THROW_RUNTIME_ERROR("Hello world!");
+
+	mqtt::tPacketCONNECT PackCONNECT(false, 10, "duper_star", mqtt::tQoS::AtLeastOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
+
+	std::future<void>TaskFuture = std::async(std::launch::async, TaskTransactionHandler, std::ref(socket), std::ref(PackCONNECT), mqtt::tControlPacketType::CONNACK);
+
+	std::future_status Status;
+
+	do
+	{
+		Status = TaskFuture.wait_for(std::chrono::milliseconds(1));
+		switch (Status)
+		{
+		case std::future_status::deferred:
+			std::cout << "-deferred\n";
+			break;
+		case std::future_status::timeout:
+			std::cout << "-timeout\n";
+			break;
+		case std::future_status::ready:
+			std::cout << "-ready!\n";
+			break;
+		}
+	} while (Status != std::future_status::ready);
+
+	TaskFuture.get();
 }

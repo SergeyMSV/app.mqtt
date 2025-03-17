@@ -160,6 +160,16 @@ public:
 	std::vector<std::uint8_t> ToVector() const;
 };
 
+class tPacket
+{
+public:
+	virtual ~tPacket() {}
+
+	virtual std::string ToString() const = 0;
+
+	virtual std::vector<std::uint8_t> ToVector() const = 0;
+};
+
 namespace hidden
 {
 
@@ -238,7 +248,7 @@ public:
 };
 
 template <class VH, class PL>
-class tPacket
+class tPacketBase : public tPacket
 {
 protected:
 	tFixedHeader m_FixedHeader{};
@@ -247,18 +257,16 @@ protected:
 	std::optional<PL> m_Payload;
 
 private:
-	tPacket() = default;
+	tPacketBase() = default;
 
 protected:
-	explicit tPacket(tFixedHeader fixedHeader) :m_FixedHeader(fixedHeader) {}
+	explicit tPacketBase(tFixedHeader fixedHeader) :m_FixedHeader(fixedHeader) {}
 
 public:
-	virtual ~tPacket() {}
-
 	std::optional<VH> GetVariableHeader() { return m_VariableHeader; }
 	std::optional<PL> GetPayload() { return m_Payload; }
 
-	static std::expected<tPacket, tError> Parse(tSpan& data)
+	static std::expected<tPacketBase, tError> Parse(tSpan& data)
 	{
 		if (data.empty())
 			return std::unexpected(tError::PacketTooShort);
@@ -269,7 +277,7 @@ public:
 		if (ControlPacketType < tControlPacketType::CONNECT || ControlPacketType > tControlPacketType::DISCONNECT)
 			return std::unexpected(tError::PacketType);
 
-		tPacket Pack{};
+		tPacketBase Pack{};
 		Pack.m_FixedHeader = FHeader;
 		data.Skip(1);
 
@@ -326,7 +334,7 @@ public:
 		return Pack;
 	}
 
-	static std::expected<tPacket, tError> Parse(const std::vector<std::uint8_t>& data)
+	static std::expected<tPacketBase, tError> Parse(const std::vector<std::uint8_t>& data)
 	{
 		tSpan DataSpan(data);
 		return Parse(DataSpan);
@@ -357,7 +365,7 @@ public:
 		return Data;
 	}
 
-	bool operator==(const tPacket& val) const
+	bool operator==(const tPacketBase& val) const
 	{
 		return m_FixedHeader == val.m_FixedHeader && m_VariableHeader == val.m_VariableHeader && m_Payload == val.m_Payload;
 	}
@@ -657,10 +665,10 @@ using tPayloadUNSUBACK = tPayloadEmpty<tVariableHeaderUNSUBACK>;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class tPacketCONNECT : public hidden::tPacket<hidden::tVariableHeaderCONNECT, hidden::tPayloadCONNECT>
+class tPacketCONNECT : public hidden::tPacketBase<hidden::tVariableHeaderCONNECT, hidden::tPayloadCONNECT>
 {
 public:
-	tPacketCONNECT() :tPacket(GetFixedHeader()) {}
+	tPacketCONNECT() :tPacketBase(GetFixedHeader()) {}
 	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password);
 	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage)
 		:tPacketCONNECT(cleanSession, keepAlive, clientId, willQos, willRetain, willTopic, willMessage, "", "")	{}
@@ -677,12 +685,12 @@ private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::CONNECT); }
 };
 
-class tPacketCONNACK : public hidden::tPacket<hidden::tVariableHeaderCONNACK, hidden::tPayloadCONNACK>
+class tPacketCONNACK : public hidden::tPacketBase<hidden::tVariableHeaderCONNACK, hidden::tPayloadCONNACK>
 {
 public:
-	tPacketCONNACK() :tPacket(GetFixedHeader()) {}
+	tPacketCONNACK() :tPacketBase(GetFixedHeader()) {}
 	tPacketCONNACK(bool sessionPresent, tConnectReturnCode connectRetCode)
-		:tPacket(GetFixedHeader())
+		:tPacketBase(GetFixedHeader())
 	{
 		m_VariableHeader = hidden::tVariableHeaderCONNACK{};
 		m_VariableHeader->ConnectAcknowledgeFlags.Field.SessionPresent = sessionPresent;
@@ -693,7 +701,7 @@ private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::CONNACK); }
 };
 
-class tPacketPUBLISH : public hidden::tPacket<hidden::tVariableHeaderPUBLISH, hidden::tPayloadPUBLISH>
+class tPacketPUBLISH : public hidden::tPacketBase<hidden::tVariableHeaderPUBLISH, hidden::tPayloadPUBLISH>
 {
 public:
 	tPacketPUBLISH() = delete;
@@ -710,12 +718,12 @@ private:
 };
 
 // 848 A PUBACK Packet is the response to a PUBLISH Packet with QoS level 1. (AtLeastOnceDelivery)
-class tPacketPUBACK : public hidden::tPacket<hidden::tVariableHeaderPUBACK, hidden::tPayloadPUBACK>
+class tPacketPUBACK : public hidden::tPacketBase<hidden::tVariableHeaderPUBACK, hidden::tPayloadPUBACK>
 {
 public:
 	tPacketPUBACK() = delete;
 	explicit tPacketPUBACK(tUInt16 packetId)
-		:tPacket(GetFixedHeader())
+		:tPacketBase(GetFixedHeader())
 	{
 		m_VariableHeader = hidden::tVariableHeaderPUBACK{};
 		m_VariableHeader->PacketId = packetId;
@@ -727,12 +735,12 @@ private:
 
 // 863 A PUBREC Packet is the response to a PUBLISH Packet with QoS 2. It is the second packet of the QoS
 // 864 2 protocol exchange.
-class tPacketPUBREC : public hidden::tPacket<hidden::tVariableHeaderPUBACK, hidden::tPayloadPUBACK>
+class tPacketPUBREC : public hidden::tPacketBase<hidden::tVariableHeaderPUBACK, hidden::tPayloadPUBACK>
 {
 public:
 	tPacketPUBREC() = delete;
 	explicit tPacketPUBREC(tUInt16 packetId)
-		:tPacket(GetFixedHeader())
+		:tPacketBase(GetFixedHeader())
 	{
 		m_VariableHeader = hidden::tVariableHeaderPUBACK{};
 		m_VariableHeader->PacketId = packetId;
@@ -744,12 +752,12 @@ private:
 
 // 879 A PUBREL Packet is the response to a PUBREC Packet.It is the third packet of the QoS 2 protocol
 // 880 exchange.
-class tPacketPUBREL : public hidden::tPacket<hidden::tVariableHeaderPUBACK, hidden::tPayloadPUBACK>
+class tPacketPUBREL : public hidden::tPacketBase<hidden::tVariableHeaderPUBACK, hidden::tPayloadPUBACK>
 {
 public:
 	tPacketPUBREL() = delete;
 	explicit tPacketPUBREL(tUInt16 packetId)
-		:tPacket(GetFixedHeader())
+		:tPacketBase(GetFixedHeader())
 	{
 		m_VariableHeader = hidden::tVariableHeaderPUBACK{};
 		m_VariableHeader->PacketId = packetId;
@@ -761,12 +769,12 @@ private:
 
 // 901 The PUBCOMP Packet is the response to a PUBREL Packet.It is the fourth and final packet of the QoS
 // 902 2 protocol exchange.
-class tPacketPUBCOMP : public hidden::tPacket<hidden::tVariableHeaderPUBACK, hidden::tPayloadPUBACK>
+class tPacketPUBCOMP : public hidden::tPacketBase<hidden::tVariableHeaderPUBACK, hidden::tPayloadPUBACK>
 {
 public:
 	tPacketPUBCOMP() = delete;
 	explicit tPacketPUBCOMP(tUInt16 packetId)
-		:tPacket(GetFixedHeader())
+		:tPacketBase(GetFixedHeader())
 	{
 		m_VariableHeader = hidden::tVariableHeaderPUBACK{};
 		m_VariableHeader->PacketId = packetId;
@@ -776,12 +784,12 @@ private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::PUBCOMP); }
 };
 
-class tPacketSUBSCRIBE : public hidden::tPacket<hidden::tVariableHeaderSUBSCRIBE, hidden::tPayloadSUBSCRIBE>
+class tPacketSUBSCRIBE : public hidden::tPacketBase<hidden::tVariableHeaderSUBSCRIBE, hidden::tPayloadSUBSCRIBE>
 {
 public:
 	tPacketSUBSCRIBE() = delete;
 	tPacketSUBSCRIBE(tUInt16 packetId, const tString& topicFilter, tQoS qos)
-		:tPacket(GetFixedHeader())
+		:tPacketBase(GetFixedHeader())
 	{
 		m_VariableHeader = hidden::tVariableHeaderSUBSCRIBE{};
 		m_VariableHeader->PacketId = packetId;
@@ -799,12 +807,12 @@ private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::SUBSCRIBE); }
 };
 
-class tPacketSUBACK : public hidden::tPacket<hidden::tVariableHeaderSUBACK, hidden::tPayloadSUBACK>
+class tPacketSUBACK : public hidden::tPacketBase<hidden::tVariableHeaderSUBACK, hidden::tPayloadSUBACK>
 {
 public:
 	tPacketSUBACK() = delete;
 	explicit tPacketSUBACK(tUInt16 packetId, tSubscribeReturnCode subscribeReturnCode)
-		:tPacket(GetFixedHeader())
+		:tPacketBase(GetFixedHeader())
 	{
 		m_VariableHeader = hidden::tVariableHeaderSUBACK{};
 		m_VariableHeader->PacketId = packetId;
@@ -817,12 +825,12 @@ private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::SUBACK); }
 };
 
-class tPacketUNSUBSCRIBE : public hidden::tPacket<hidden::tVariableHeaderUNSUBSCRIBE, hidden::tPayloadUNSUBSCRIBE>
+class tPacketUNSUBSCRIBE : public hidden::tPacketBase<hidden::tVariableHeaderUNSUBSCRIBE, hidden::tPayloadUNSUBSCRIBE>
 {
 public:
 	tPacketUNSUBSCRIBE() = delete;
 	tPacketUNSUBSCRIBE(tUInt16 packetId, const tString& topicFilter)
-		:tPacket(GetFixedHeader())
+		:tPacketBase(GetFixedHeader())
 	{
 		m_VariableHeader = hidden::tVariableHeaderUNSUBSCRIBE{};
 		m_VariableHeader->PacketId = packetId;
@@ -840,12 +848,12 @@ private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::UNSUBSCRIBE); }
 };
 
-class tPacketUNSUBACK : public hidden::tPacket<hidden::tVariableHeaderUNSUBACK, hidden::tPayloadUNSUBACK>
+class tPacketUNSUBACK : public hidden::tPacketBase<hidden::tVariableHeaderUNSUBACK, hidden::tPayloadUNSUBACK>
 {
 public:
 	tPacketUNSUBACK() = delete;
 	explicit tPacketUNSUBACK(tUInt16 packetId)
-		:tPacket(GetFixedHeader())
+		:tPacketBase(GetFixedHeader())
 	{
 		m_VariableHeader = hidden::tVariableHeaderSUBACK{};
 		m_VariableHeader->PacketId = packetId;
@@ -855,28 +863,28 @@ private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::UNSUBACK); }
 };
 
-class tPacketPINGREQ : public hidden::tPacket<hidden::tVariableHeaderEmpty, hidden::tPayloadEmpty<hidden::tVariableHeaderEmpty>>
+class tPacketPINGREQ : public hidden::tPacketBase<hidden::tVariableHeaderEmpty, hidden::tPayloadEmpty<hidden::tVariableHeaderEmpty>>
 {
 public:
-	tPacketPINGREQ() :tPacket(GetFixedHeader()) {}
+	tPacketPINGREQ() :tPacketBase(GetFixedHeader()) {}
 
 private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::PINGREQ); }
 };
 
-class tPacketPINGRESP : public hidden::tPacket<hidden::tVariableHeaderEmpty, hidden::tPayloadEmpty<hidden::tVariableHeaderEmpty>>
+class tPacketPINGRESP : public hidden::tPacketBase<hidden::tVariableHeaderEmpty, hidden::tPayloadEmpty<hidden::tVariableHeaderEmpty>>
 {
 public:
-	tPacketPINGRESP() :tPacket(GetFixedHeader()) {}
+	tPacketPINGRESP() :tPacketBase(GetFixedHeader()) {}
 
 private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::PINGRESP); }
 };
 
-class tPacketDISCONNECT : public hidden::tPacket<hidden::tVariableHeaderEmpty, hidden::tPayloadEmpty<hidden::tVariableHeaderEmpty>>
+class tPacketDISCONNECT : public hidden::tPacketBase<hidden::tVariableHeaderEmpty, hidden::tPayloadEmpty<hidden::tVariableHeaderEmpty>>
 {
 public:
-	tPacketDISCONNECT() :tPacket(GetFixedHeader()) {}
+	tPacketDISCONNECT() :tPacketBase(GetFixedHeader()) {}
 
 private:
 	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::DISCONNECT); }
