@@ -4,7 +4,9 @@
 
 namespace utils
 {
-namespace packet_MQTT
+namespace packet
+{
+namespace mqtt
 {
 
 template<typename T>
@@ -157,14 +159,14 @@ namespace hidden
 std::string tFixedHeader::ToString() const
 {
 	tControlPacketType PacketType = static_cast<tControlPacketType>(Field.ControlPacketType);
-	std::string Str = packet_MQTT::ToString(PacketType);
+	std::string Str = mqtt::ToString(PacketType);
 	if (PacketType == tControlPacketType::PUBLISH)
 	{
 		tFixedHeaderPUBLISHFlags Flags{};
 		Flags.Value = Field.Flags;
-		Str += " retain: " + packet_MQTT::ToString(static_cast<bool>(Flags.Field.RETAIN));
-		Str += ", QoS: " + packet_MQTT::ToString(static_cast<tQoS>(Flags.Field.QoS));
-		Str += ", DUP: " + packet_MQTT::ToString(static_cast<bool>(Flags.Field.DUP));
+		Str += " retain: " + mqtt::ToString(static_cast<bool>(Flags.Field.RETAIN));
+		Str += ", QoS: " + mqtt::ToString(static_cast<tQoS>(Flags.Field.QoS));
+		Str += ", DUP: " + mqtt::ToString(static_cast<bool>(Flags.Field.DUP));
 	}
 	return Str;
 }
@@ -251,14 +253,14 @@ std::string tVariableHeaderCONNECT::ToString() const
 	std::string Str("Protocol");
 	Str += " name: " + ProtocolName;
 	Str += ", level: " + std::to_string(ProtocolLevel);
-	Str += "; Clean session: " + packet_MQTT::ToString(static_cast<bool>(ConnectFlags.Field.CleanSession));
+	Str += "; Clean session: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.CleanSession));
 	Str += "; Will";
-	Str += " flag: " + packet_MQTT::ToString(static_cast<bool>(ConnectFlags.Field.WillFlag));
-	Str += ", QoS: " + packet_MQTT::ToString(static_cast<tQoS>(ConnectFlags.Field.WillQoS));
-	Str += ", retain: " + packet_MQTT::ToString(static_cast<bool>(ConnectFlags.Field.WillRetain));
+	Str += " flag: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.WillFlag));
+	Str += ", QoS: " + mqtt::ToString(static_cast<tQoS>(ConnectFlags.Field.WillQoS));
+	Str += ", retain: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.WillRetain));
 	Str += "; User";
-	Str += " name: " + packet_MQTT::ToString(static_cast<bool>(ConnectFlags.Field.UserNameFlag));
-	Str += ", password: " + packet_MQTT::ToString(static_cast<bool>(ConnectFlags.Field.PasswordFlag));
+	Str += " name: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.UserNameFlag));
+	Str += ", password: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.PasswordFlag));
 	Str += "; Keep alive: " + std::to_string(KeepAlive.Value) + " s";
 	return Str;
 }
@@ -365,14 +367,14 @@ std::expected<tVariableHeaderCONNACK, tError> tVariableHeaderCONNACK::Parse(cons
 std::string tVariableHeaderCONNACK::ToString() const
 {
 	std::string Str("ReturnCode: ");
-	Str += packet_MQTT::ToString(ConnectReturnCode);
+	Str += mqtt::ToString(ConnectReturnCode);
 
 	if (ConnectReturnCode != tConnectReturnCode::ConnectionAccepted)
 		return Str;
 
 	Str += "; Session Present: ";
 	Str += ConnectAcknowledgeFlags.Field.SessionPresent ?
-			packet_MQTT::ToString(ConnectAcknowledgeFlags.Field.SessionPresent, "Continued") : packet_MQTT::ToString(ConnectAcknowledgeFlags.Field.SessionPresent, "Clean");
+			mqtt::ToString(ConnectAcknowledgeFlags.Field.SessionPresent, "Continued") : mqtt::ToString(ConnectAcknowledgeFlags.Field.SessionPresent, "Clean");
 	return Str;
 }
 
@@ -491,7 +493,7 @@ std::expected<tPayloadSUBSCRIBE::tTopicFilter, tError> tPayloadSUBSCRIBE::tTopic
 
 std::string tPayloadSUBSCRIBE::tTopicFilter::ToString() const
 {
-	return std::string("Topic filter: ") + TopicFilter + ", QoS: " + packet_MQTT::ToString(QoS);
+	return std::string("Topic filter: ") + TopicFilter + ", QoS: " + mqtt::ToString(QoS);
 }
 
 std::vector<std::uint8_t> tPayloadSUBSCRIBE::tTopicFilter::ToVector() const
@@ -555,7 +557,7 @@ std::expected<tPayloadSUBACK, tError> tPayloadSUBACK::Parse(const tVariableHeade
 
 std::string tPayloadSUBACK::ToString() const
 {
-	return packet_MQTT::ToString(SubscribeReturnCode);
+	return mqtt::ToString(SubscribeReturnCode);
 }
 
 std::vector<std::uint8_t> tPayloadSUBACK::ToVector() const
@@ -770,5 +772,6 @@ std::expected<tControlPacketType, tError> TestPacket(const std::vector<std::uint
 	return TestPacket(DataSpan);
 }
 
+}
 }
 }

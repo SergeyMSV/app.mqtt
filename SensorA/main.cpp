@@ -10,7 +10,8 @@
 #include <utilsPacketMQTT.h>
 
 using boost::asio::ip::tcp;
-namespace mqtt = utils::packet_MQTT;
+namespace mqtt = utils::packet::mqtt;
+//namespace mqtt = utils::packet_MQTT;
 
 //std::size_t ReceivePacket(tcp::socket& socket, utils::packet_MQTT::tControlPacketType& packetType)
 //{
@@ -57,7 +58,7 @@ void TaskConnectHandler(tcp::socket& socket)
 
 	Span = mqtt::tSpan(Buffer, SizeRcv);
 
-	if (*Res != utils::packet_MQTT::tControlPacketType::CONNACK)
+	if (*Res != mqtt::tControlPacketType::CONNACK)
 		THROW_RUNTIME_ERROR("PREVED: WRONG PACKET 1");
 
 	auto Pack_parsed = mqtt::tPacketCONNACK::Parse(Span);

@@ -18,7 +18,9 @@
 
 namespace utils
 {
-namespace packet_MQTT
+namespace packet
+{
+namespace mqtt
 {
 // 178 Text fields in the Control Packets described later are encoded as UTF-8 strings. ...
 // 187 Unless stated otherwise all UTF-8 encoded strings can have any length in the range 0 to 65535 bytes.
@@ -885,5 +887,6 @@ private:
 std::expected<tControlPacketType, tError> TestPacket(tSpan& data);
 std::expected<tControlPacketType, tError> TestPacket(const std::vector<std::uint8_t>& data);
 
+}
 }
 }
