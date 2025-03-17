@@ -1,7 +1,9 @@
 //#include <array>
 #include <future>
 #include <iostream>
-#include <thread>
+#include <optional>
+//#include <thread>
+#include <utility>
 
 #include <boost/asio.hpp>
 
@@ -10,65 +12,8 @@
 #include <utilsPacketMQTT.h>
 
 using boost::asio::ip::tcp;
-namespace mqtt = utils::packet::mqtt;
-//namespace mqtt = utils::packet_MQTT;
 
-//std::size_t ReceivePacket(tcp::socket& socket, utils::packet_MQTT::tControlPacketType& packetType)
-//{
-//	std::vector<std::uint8_t> Buffer(128);
-//
-//	boost::system::error_code Error;
-//
-//	//for (;;)
-//	//{
-//		std::size_t SizeRcv = socket.read_some(boost::asio::buffer(Buffer), Error);
-//		if (SizeRcv)
-//		{
-//			utils::packet_MQTT::tSpan Span(Buffer, SizeRcv);
-//			auto Res = utils::packet_MQTT::TestPacket(Span);
-//			if (!Res.has_value())
-//				THROW_RUNTIME_ERROR("PREVED: NO DATA 1");
-//			packetType = *Res;
-//			return SizeRcv;
-//		}
-//	//}
-//}
-
-void TaskConnectHandler(tcp::socket& socket)
-//utils::packet_MQTT::tPacketCONNACK TaskConnectHandler(tcp::socket& socket)
-{
-	mqtt::tPacketCONNECT PackCONNECT(false, 10, "duper_star", mqtt::tQoS::AtLeastOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
-
-	std::cout << PackCONNECT.ToString() << '\n';
-
-	auto PackVector = PackCONNECT.ToVector();
-
-	socket.write_some(boost::asio::buffer(PackVector));
-
-	std::vector<std::uint8_t> Buffer(128);
-	boost::system::error_code Error;
-	std::size_t SizeRcv = socket.read_some(boost::asio::buffer(Buffer), Error);
-	if (!SizeRcv)
-		THROW_RUNTIME_ERROR("PREVED: NO DATA 1");
-
-	mqtt::tSpan Span(Buffer, SizeRcv);
-	auto Res = mqtt::TestPacket(Span);
-	if (!Res.has_value())
-		THROW_RUNTIME_ERROR("PREVED: NO PACKET 1"); // Res.error() - put it into the message
-
-	Span = mqtt::tSpan(Buffer, SizeRcv);
-
-	if (*Res != mqtt::tControlPacketType::CONNACK)
-		THROW_RUNTIME_ERROR("PREVED: WRONG PACKET 1");
-
-	auto Pack_parsed = mqtt::tPacketCONNACK::Parse(Span);
-	if (!Pack_parsed.has_value())
-		THROW_RUNTIME_ERROR("PREVED: WRONG PACKET 2"); // Res.error() - put it into the message
-
-	std::cout << Pack_parsed->ToString() << '\n';
-
-	//return static_cast<utils::packet_MQTT::tPacketCONNACK>(Pack_parsed.value());
-}
+void TaskConnectHandler(tcp::socket& socket);
 
 int main()
 {
@@ -86,27 +31,49 @@ int main()
 		boost::asio::connect(Socket, Ep);
 	//}
 	
-	//std::packaged_task<void(tcp::socket&)> TaskConnect(TaskConnectHandler);
-	//std::future<void>TaskConnectFuture = TaskConnect.get_future();
-	//std::thread TaskConnectThread(std::move(TaskConnect), std::ref(Socket));
-
-	//std::future<void>TaskConnectFuture = std::async(std::launch::async, TaskConnectHandler, std::ref(Socket));
-
-	std::future<void>TaskConnectFuture = std::async(std::launch::deferred, TaskConnectHandler, std::ref(Socket));
-
-
-	//std::promise<int> ThreadSensorPromise;
-	//std::future<int> ThreadSensorFuture = ThreadSensorPromise.get_future();
-
-	//std::thread ThreadSensor(ThreadSensorHandler, std::move(ThreadSensorPromise));
-
-	std::cout << "SOME IMPORTANT WORK STARTED\n";
-	Sleep(10000); // some important work...
-	std::cout << "SOME IMPORTANT WORK FINISHED\n";
-
 	try
 	{
-		TaskConnectFuture.get();
+		std::future<void>TaskConnectFuture = std::async(std::launch::async, TaskConnectHandler, std::ref(Socket));
+		//std::future<void>TaskConnectFuture = std::async(std::launch::deferred, TaskConnectHandler, std::ref(Socket)); // a task is not started by wait_for(..), it'll be deferred forever
+
+		//std::future<void>TaskMeasureFuture = std::async(std::launch::async, TaskMeasureHandler);
+
+		std::cout << "SOME IMPORTANT WORK STARTED\n";
+		//Sleep(10000); // some important work...
+		std::cout << "SOME IMPORTANT WORK FINISHED\n";
+
+		//MeasureData = TaskMeasureFuture.get();
+
+		//TaskConnectFuture.wait();
+
+
+		std::future_status Status;
+
+		do
+		{
+			Status = TaskConnectFuture.wait_for(std::chrono::milliseconds(1));
+			switch (Status)
+			{
+			case std::future_status::deferred:
+				std::cout << "deferred\n";
+				break;
+			case std::future_status::timeout:
+				std::cout << "timeout\n";
+				break;
+			case std::future_status::ready:
+				std::cout << "ready!\n";
+				break;
+			}
+		} while (Status != std::future_status::ready);
+
+
+		std::cout << "SOME NOT IMPORTANT WORK\n";
+
+		//std::future<void>TaskPublishFuture = std::async(std::launch::async, TaskPublishHandler, std::ref(Socket), TaskMeasureFuture.get());// MeasureData);
+		//TaskPublishFuture.get();
+
+		TaskConnectFuture.wait();
+
 		//ExitCode = TaskConnectFuture.get();
 	}
 	catch (std::exception& ex)

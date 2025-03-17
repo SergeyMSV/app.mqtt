@@ -5,6 +5,7 @@
     <ClCompile Include="..\LIB.Utils\utilsPacketMQTT.cpp">
       <Filter>LIB.Utils</Filter>
     </ClCompile>
+    <ClCompile Include="main_connection.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="LIB.Utils">
@@ -30,5 +31,6 @@
     <ClInclude Include="..\LIB.Utils\utilsException.h">
       <Filter>LIB.Utils</Filter>
     </ClInclude>
+    <ClInclude Include="main.h" />
   </ItemGroup>
 </Project>

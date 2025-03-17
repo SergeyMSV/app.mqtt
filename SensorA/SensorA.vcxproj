@@ -141,6 +141,7 @@
   <ItemGroup>
     <ClCompile Include="..\LIB.Utils\utilsPacketMQTT.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="main_connection.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\LIB.Utils\!Refresh.bat" />
@@ -151,6 +152,7 @@
     <ClInclude Include="..\LIB.Utils\utilsExits.h" />
     <ClInclude Include="..\LIB.Utils\utilsPacketMQTT.h" />
     <ClInclude Include="libConfig.h" />
+    <ClInclude Include="main.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
