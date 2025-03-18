@@ -151,6 +151,7 @@
     <ClInclude Include="..\LIB.Utils\utilsException.h" />
     <ClInclude Include="..\LIB.Utils\utilsExits.h" />
     <ClInclude Include="..\LIB.Utils\utilsPacketMQTT.h" />
+    <ClInclude Include="..\LIB.Utils\utilsStd.h" />
     <ClInclude Include="libConfig.h" />
     <ClInclude Include="main.h" />
   </ItemGroup>

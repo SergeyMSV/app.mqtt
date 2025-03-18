@@ -32,5 +32,8 @@
       <Filter>LIB.Utils</Filter>
     </ClInclude>
     <ClInclude Include="main.h" />
+    <ClInclude Include="..\LIB.Utils\utilsStd.h">
+      <Filter>LIB.Utils</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

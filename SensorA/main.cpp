@@ -1,8 +1,7 @@
-//#include <array>
 #include <future>
 #include <iostream>
 #include <optional>
-//#include <thread>
+#include <thread>
 #include <utility>
 
 #include <boost/asio.hpp>
@@ -19,63 +18,68 @@ int main()
 {
 	int ExitCode = utils::exit_code::EX_OK;
 
-	//try
-	//{
-		boost::asio::io_context ioc;
-
-		tcp::resolver Resolver(ioc);
-		tcp::resolver::results_type Ep = Resolver.resolve("test.mosquitto.org", "1883"); // MQTT, unencrypted, unauthenticated
-		//tcp::resolver::results_type Ep = resolver.resolve("test.mosquitto.org", "1884"); // 1884 : MQTT, unencrypted, authenticated
-
-		tcp::socket Socket(ioc);
-		boost::asio::connect(Socket, Ep);
-	//}
-	
 	try
 	{
-		std::future<void>TaskConnectionFuture = std::async(std::launch::async, TaskConnectionHandler, std::ref(Socket));
-		//std::future<void>TaskConnectFuture = std::async(std::launch::deferred, TaskConnectHandler, std::ref(Socket)); // a task is not started by wait_for(..), it'll be deferred forever
-
-		//std::future<void>TaskMeasureFuture = std::async(std::launch::async, TaskMeasureHandler);
-
-		std::cout << "SOME IMPORTANT WORK STARTED\n";
-		//Sleep(10000); // some important work...
-		std::cout << "SOME IMPORTANT WORK FINISHED\n";
-
-		//MeasureData = TaskMeasureFuture.get();
-
-		//TaskConnectFuture.wait();
-
-
-		std::future_status Status;
-
-		do
+		for (;;)
 		{
-			Status = TaskConnectionFuture.wait_for(std::chrono::milliseconds(1));
-			switch (Status)
+			boost::asio::io_context ioc;
+
+			tcp::resolver Resolver(ioc);
+			tcp::resolver::results_type Ep = Resolver.resolve("test.mosquitto.org", "1883"); // MQTT, unencrypted, unauthenticated
+			//tcp::resolver::results_type Ep = resolver.resolve("test.mosquitto.org", "1884"); // 1884 : MQTT, unencrypted, authenticated
+
+			tcp::socket Socket(ioc);
+
+			try
 			{
-			case std::future_status::deferred:
-				std::cout << "deferred\n";
-				break;
-			case std::future_status::timeout:
-				std::cout << "timeout\n";
-				break;
-			case std::future_status::ready:
-				std::cout << "ready!\n";
-				break;
+				boost::asio::connect(Socket, Ep);
+
+				std::future<void>TaskConnectionFuture = std::async(std::launch::async, TaskConnectionHandler, std::ref(Socket));
+				//std::future<void>TaskConnectFuture = std::async(std::launch::deferred, TaskConnectHandler, std::ref(Socket)); // a task is not started by wait_for(..), it'll be deferred forever
+
+				//std::future<void>TaskMeasureFuture = std::async(std::launch::async, TaskMeasureHandler);
+
+				std::cout << "SOME IMPORTANT WORK STARTED\n";
+				Sleep(5000); // some important work...
+				std::cout << "SOME IMPORTANT WORK FINISHED\n";
+
+				//MeasureData = TaskMeasureFuture.get();
+
+				//TaskConnectFuture.wait();
+
+
+				std::future_status Status;
+
+				do
+				{
+					Status = TaskConnectionFuture.wait_for(std::chrono::milliseconds(1));
+					switch (Status)
+					{
+					case std::future_status::deferred:
+						std::cout << "deferred\n";
+						break;
+					case std::future_status::timeout:
+						std::cout << "timeout\n";
+						break;
+					case std::future_status::ready:
+						std::cout << "ready!\n";
+						break;
+					}
+				} while (Status != std::future_status::ready);
+
+				std::cout << "SOME NOT IMPORTANT WORK\n";
+
+				TaskConnectionFuture.get();
 			}
-		} while (Status != std::future_status::ready);
+			catch (std::exception& ex)
+			{
+				std::cerr << ex.what() << '\n';
+			}
 
+			Socket.close();
 
-		std::cout << "SOME NOT IMPORTANT WORK\n";
-
-		//std::future<void>TaskPublishFuture = std::async(std::launch::async, TaskPublishHandler, std::ref(Socket), TaskMeasureFuture.get());// MeasureData);
-		//TaskPublishFuture.get();
-
-		//TaskConnectionFuture.wait(); // it doesn't catch an exception occured
-		TaskConnectionFuture.get();
-
-		//ExitCode = TaskConnectFuture.get();
+			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+		}
 	}
 	catch (std::exception& ex)
 	{
@@ -85,8 +89,6 @@ int main()
 
 		ExitCode = utils::exit_code::EX_IOERR;
 	}
-
-	//TaskConnectThread.join();
 
 	return ExitCode;
 }
