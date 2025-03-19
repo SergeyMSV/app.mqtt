@@ -70,7 +70,7 @@ int main()
 
 				std::cout << "SOME NOT IMPORTANT WORK\n";
 
-				//TaskConnectionFuture.get();
+				TaskConnectionFuture.get();
 			}
 			catch (std::exception& ex)
 			{
