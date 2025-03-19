@@ -7,12 +7,16 @@ namespace utils
 namespace std23
 {
 
+#ifdef __cpp_lib_containers_ranges
+using std::vector;
+#else // __cpp_lib_containers_ranges
 template<typename T>
 class vector : public std::vector<T>
 {
 public:
 	vector() = default;
 	vector(const std::vector<T>& val) :std::vector<T>(val) {}
+	vector(std::vector<T>&& val) :std::vector<T>(std::move(val)) {}
 
 	void append_range(const std::vector<T>& range)
 	{
@@ -24,6 +28,7 @@ public:
 		this->insert(pos, range.cbegin(), range.cend());
 	}
 };
+#endif // __cpp_lib_containers_ranges
 
 }
 }

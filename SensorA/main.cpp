@@ -20,7 +20,7 @@ int main()
 
 	try
 	{
-		for (;;)
+		//for (;;)
 		{
 			boost::asio::io_context ioc;
 
@@ -47,29 +47,30 @@ int main()
 
 				//TaskConnectFuture.wait();
 
+				Sleep(5); // some important work...
 
-				std::future_status Status;
+				//std::future_status Status;
 
-				do
-				{
-					Status = TaskConnectionFuture.wait_for(std::chrono::milliseconds(1));
-					switch (Status)
-					{
-					case std::future_status::deferred:
-						std::cout << "deferred\n";
-						break;
-					case std::future_status::timeout:
-						std::cout << "timeout\n";
-						break;
-					case std::future_status::ready:
-						std::cout << "ready!\n";
-						break;
-					}
-				} while (Status != std::future_status::ready);
+				//do
+				//{
+				//	Status = TaskConnectionFuture.wait_for(std::chrono::milliseconds(1));
+				//	switch (Status)
+				//	{
+				//	case std::future_status::deferred:
+				//		std::cout << "deferred\n";
+				//		break;
+				//	case std::future_status::timeout:
+				//		std::cout << "timeout\n";
+				//		break;
+				//	case std::future_status::ready:
+				//		std::cout << "ready!\n";
+				//		break;
+				//	}
+				//} while (Status != std::future_status::ready);
 
 				std::cout << "SOME NOT IMPORTANT WORK\n";
 
-				TaskConnectionFuture.get();
+				//TaskConnectionFuture.get();
 			}
 			catch (std::exception& ex)
 			{
@@ -77,7 +78,7 @@ int main()
 			}
 
 			Socket.close();
-
+			std::cout << "WAIT\n";
 			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 		}
 	}
