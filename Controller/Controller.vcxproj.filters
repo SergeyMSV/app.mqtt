@@ -19,6 +19,10 @@
     <ClCompile Include="..\LIB.Utils\utilsPacketMQTT.cpp">
       <Filter>LIB.Utils</Filter>
     </ClCompile>
+    <ClCompile Include="main_connection.cpp" />
+    <ClCompile Include="..\LIB.Share\utils.cpp">
+      <Filter>LIB.Share</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\LIB.Utils\!Refresh.bat">
@@ -45,5 +49,9 @@
       <Filter>LIB.Utils</Filter>
     </ClInclude>
     <ClInclude Include="libConfig.h" />
+    <ClInclude Include="main.h" />
+    <ClInclude Include="..\LIB.Share\utils.h">
+      <Filter>LIB.Share</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
