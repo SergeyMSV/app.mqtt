@@ -141,6 +141,7 @@
   <ItemGroup>
     <ClCompile Include="..\LIB.Share\utils.cpp" />
     <ClCompile Include="..\LIB.Utils\utilsChrono.cpp" />
+    <ClCompile Include="..\LIB.Utils\utilsException.cpp" />
     <ClCompile Include="..\LIB.Utils\utilsLog.cpp" />
     <ClCompile Include="..\LIB.Utils\utilsPacketMQTT.cpp" />
     <ClCompile Include="main.cpp" />

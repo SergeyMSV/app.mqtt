@@ -12,8 +12,6 @@
 #include <utilsExits.h>
 #include <utilsPacketMQTT.h>
 
-test::tLogger g_Log;
-
 using boost::asio::ip::tcp;
 
 void TaskConnectionHandler(tcp::socket& socket);
@@ -24,8 +22,7 @@ int main()
 
 	try
 	{
-		utils::GetLogMessage
-		test::tMeasureDuration Measure("MAIN");
+		utils::tMeasureDuration Measure("MAIN");
 		//for (;;)
 		{
 			boost::asio::io_context ioc;

@@ -23,6 +23,9 @@
     <ClCompile Include="..\LIB.Share\utils.cpp">
       <Filter>LIB.Share</Filter>
     </ClCompile>
+    <ClCompile Include="..\LIB.Utils\utilsException.cpp">
+      <Filter>LIB.Utils</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\LIB.Utils\!Refresh.bat">
