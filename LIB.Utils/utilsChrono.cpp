@@ -2,6 +2,8 @@
 
 namespace utils
 {
+namespace chrono
+{
 
 tTimePeriod::tTimePeriod(bool sync)
 	:m_Sync(sync)
@@ -17,7 +19,7 @@ tTimePeriod::tTimePeriod(bool sync, uint32_t period, bool postpone)
 void tTimePeriod::Set(uint32_t period, bool postpone)
 {
 	m_Period = period;
-	m_StartTime = utils::tClock::now();
+	m_StartTime = tClock::now();
 
 	if (postpone)
 		m_StartTime += std::chrono::seconds(m_Period);
@@ -25,7 +27,7 @@ void tTimePeriod::Set(uint32_t period, bool postpone)
 
 bool tTimePeriod::IsReady()
 {
-	return IsReady(utils::tClock::now());
+	return IsReady(tClock::now());
 }
 
 bool tTimePeriod::IsReady(const tTimePoint& timePointNow)
@@ -38,9 +40,9 @@ bool tTimePeriod::IsReady(const tTimePoint& timePointNow)
 	return true;
 }
 
-utils::tTimePoint tTimePeriod::GetStartTime(const tTimePoint& timePointNow, const utils::tTimePoint& startTime, uint32_t period) const
+tTimePoint tTimePeriod::GetStartTime(const tTimePoint& timePointNow, const tTimePoint& startTime, uint32_t period) const
 {
-	utils::tTimePoint StartTime = startTime;
+	tTimePoint StartTime = startTime;
 
 	if (!m_Sync)
 	{
@@ -75,7 +77,7 @@ void tTimePeriodCount::Set(uint32_t period, uint32_t repPeriod, int repQty, bool
 
 bool tTimePeriodCount::IsReady()
 {
-	auto TimeNow = utils::tClock::now();
+	auto TimeNow = tClock::now();
 	auto StartTimePrev = GetStartTime();
 
 	if (tTimePeriod::IsReady(TimeNow))
@@ -109,4 +111,5 @@ void tTimePeriodCount::SetRep(uint32_t repPeriod, int repQty)
 	m_RepQtyCount = 0;
 }
 
+}
 }

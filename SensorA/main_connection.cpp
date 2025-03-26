@@ -37,7 +37,7 @@ std::optional<tReceivePacketResult> ReceivePacket(tcp::socket& socket, std::vect
 template <class tCmd, class tRsp>
 tRsp TaskTransactionHandler(tcp::socket& socket, const tCmd& packet)
 {
-	test::tMeasureDuration Measure("TTH");
+	utils::tMeasureDuration Measure("TTH");
 
 	g_Log.PacketSent(packet.ToString());
 
