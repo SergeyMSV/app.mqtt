@@ -15,7 +15,7 @@
 
 using boost::asio::ip::tcp;
 
-void TaskConnectionHandler(tcp::socket& socket);
+void TaskConnectionHandler(tcp::socket& socket, const std::string sensorData);
 
 int main()
 {
@@ -38,7 +38,7 @@ int main()
 			{
 				boost::asio::connect(Socket, Ep);
 
-				std::future<void>TaskConnectionFuture = std::async(std::launch::async, TaskConnectionHandler, std::ref(Socket));
+				std::future<void>TaskConnectionFuture = std::async(std::launch::async, TaskConnectionHandler, std::ref(Socket), SensorData);
 				//std::future<void>TaskConnectFuture = std::async(std::launch::deferred, TaskConnectHandler, std::ref(Socket)); // a task is not started by wait_for(..), it'll be deferred forever
 
 				TaskConnectionFuture.get();

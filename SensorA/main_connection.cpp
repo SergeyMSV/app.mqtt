@@ -13,7 +13,6 @@
 #include <utilsExits.h>
 #include <utilsPacketMQTT.h>
 
-
 using boost::asio::ip::tcp;
 namespace mqtt = utils::packet::mqtt;
 
@@ -77,7 +76,7 @@ void TaskTransactionWait(std::future<T>& future, std::uint32_t time_ms, const st
 	}
 }
 
-void TaskConnectionHandler(tcp::socket& socket)
+void TaskConnectionHandler(tcp::socket& socket, const std::string sensorData)
 {
 	constexpr std::uint16_t KeepAlive = 10; // sec.
 
