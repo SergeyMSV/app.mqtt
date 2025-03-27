@@ -53,12 +53,10 @@ int main()
 		catch (std::exception& ex)
 		{
 			g_Log.Exception(ex.what());
-
-			//ExitCode = utils::exit_code::EX_IOERR;
 		}
 
 		utils::tMeasureDuration Measure("Sleeping...");
-		std::this_thread::sleep_for(std::chrono::milliseconds(1000)); // [#] pause - it can be in the settings
+		std::this_thread::sleep_for(std::chrono::seconds(10)); // [#] pause - it can be in the settings
 	}
 
 	return utils::exit_code::EX_OK;
