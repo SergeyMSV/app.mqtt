@@ -1,11 +1,15 @@
 #pragma once
 
+#include <libConfig.h>
+
 #include <iostream>
 
 #include <utilsChrono.h>
 #include <utilslog.h>
 
 namespace utils
+{
+namespace share
 {
 
 class tLogger : public utils::log::tLog
@@ -51,10 +55,13 @@ protected:
 };
 
 }
+}
 
-extern utils::tLogger g_Log;
+extern utils::share::tLogger g_Log;
 
 namespace utils
+{
+namespace share
 {
 
 class tMeasureDuration : public utils::chrono::tTimeDuration
@@ -77,4 +84,5 @@ public:
 	}
 };
 
+}
 }

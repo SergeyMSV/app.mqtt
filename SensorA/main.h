@@ -1,7 +1,3 @@
 #pragma once
 
-#include <utils.h>
-
-struct tMeasure
-{
-};
+#include <libConfig.h>

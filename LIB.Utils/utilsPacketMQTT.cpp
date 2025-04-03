@@ -100,6 +100,27 @@ std::string ToString(tControlPacketType val)
 	return GetString(LogControlPacketType, val);
 }
 
+std::string ToString(const std::string& label, const std::optional<std::string>& val)
+{
+	if (val.has_value())
+		return label + *val;
+	return {};
+}
+
+std::string ToString(const std::string& label, const std::optional<tUInt16>& val)
+{
+	if (val.has_value())
+		return label + std::to_string(val->Value);
+	return {};
+}
+
+std::vector<std::uint8_t> ToVector(const std::optional<tString>& val)
+{
+	if (val.has_value())
+		return val->ToVector();
+	return {};
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::optional<tUInt16> tUInt16::Parse(tSpan& data)
@@ -131,15 +152,15 @@ tUInt16& tUInt16::operator=(std::uint16_t val)
 
 std::optional<tString> tString::Parse(tSpan& data)
 {
-	auto LengthExp = tUInt16::Parse(data);
-	if (!LengthExp.has_value())
+	std::optional<tUInt16> LengthOpt = tUInt16::Parse(data);
+	if (!LengthOpt.has_value())
 		return {};
 
-	if (data.size() < LengthExp->Value)
+	if (data.size() < LengthOpt->Value)
 		return {};
 
-	std::string Str(data.begin(), data.begin() + LengthExp->Value);
-	data.Skip(LengthExp->Value);
+	std::string Str(data.begin(), data.begin() + LengthOpt->Value);
+	data.Skip(LengthOpt->Value);
 
 	return Str;
 }
@@ -156,24 +177,53 @@ std::vector<std::uint8_t> tString::ToVector() const
 namespace hidden
 {
 
-std::string tFixedHeader::ToString() const
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+std::optional<std::pair<tFixedHeader, std::size_t>> tFixedHeader::Parse(tSpan& data)
+{
+	if (data.empty())
+		return {};
+	tFixedHeader FixedHeader = data[0];
+	const auto ControlPacketType = static_cast<tControlPacketType>(FixedHeader.Field.ControlPacketType);
+	if (ControlPacketType < tControlPacketType::CONNECT || ControlPacketType > tControlPacketType::DISCONNECT)
+		return {};
+	data.Skip(1);
+	auto RLengtOpt = tRemainingLength::Parse(data);
+	if (!RLengtOpt.has_value() || *RLengtOpt != data.size())
+		return {};
+	return std::pair(FixedHeader, *RLengtOpt);
+}
+
+std::string tFixedHeader::ToString(bool align) const
 {
 	tControlPacketType PacketType = static_cast<tControlPacketType>(Field.ControlPacketType);
 	std::string Str = mqtt::ToString(PacketType);
+	constexpr std::size_t LenghAligned = 11;
+	if (align && Str.size() < LenghAligned)
+		Str.append(LenghAligned - Str.size(), ' ');
 	if (PacketType == tControlPacketType::PUBLISH)
 	{
-		tFixedHeaderPUBLISHFlags Flags{};
+		tContentPUBLISH::tFixedHeaderPUBLISHFlags Flags{};
 		Flags.Value = Field.Flags;
-		Str += " retain: " + mqtt::ToString(static_cast<bool>(Flags.Field.RETAIN));
+		Str += " Retain: " + mqtt::ToString(static_cast<bool>(Flags.Field.RETAIN));
 		Str += ", QoS: " + mqtt::ToString(static_cast<tQoS>(Flags.Field.QoS));
 		Str += ", DUP: " + mqtt::ToString(static_cast<bool>(Flags.Field.DUP));
 	}
 	return Str;
 }
 
+std::vector<std::uint8_t> tFixedHeader::ToVector(std::size_t dataSize) const
+{
+	std23::vector<std::uint8_t> Data = tRemainingLength::ToVector(static_cast<std::uint32_t>(dataSize));
+	if (Data.empty())
+		return {};
+	Data.insert(Data.begin(), Value);
+	return Data;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-tRemainingLengthParseExp tRemainingLength::Parse(tSpan& data)
+std::optional<std::uint32_t> tRemainingLength::Parse(tSpan& data)
 {
 	if (data.empty())
 		return {};
@@ -198,7 +248,7 @@ tRemainingLengthParseExp tRemainingLength::Parse(tSpan& data)
 	return {};
 }
 
-tRemainingLengthToVectorExp tRemainingLength::ToVector(std::uint32_t val)
+std::vector<std::uint8_t> tRemainingLength::ToVector(std::uint32_t val)
 {
 	std::vector<std::uint8_t> Data;
 	for (int i = 0; i < m_SizeMax; ++i)
@@ -223,256 +273,444 @@ tRemainingLengthToVectorExp tRemainingLength::ToVector(std::uint32_t val)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// CONNECT: header & payload
+// CONNECT
 
-std::optional<tVariableHeaderCONNECT> tVariableHeaderCONNECT::Parse(const hidden::tFixedHeader& fixedHeader, tSpan& data)
+tContentCONNECT::tVariableHeader::tVariableHeader(tVariableHeader&& val) noexcept
+	:ProtocolName(std::move(val.ProtocolName)), ProtocolLevel(val.ProtocolLevel), ConnectFlags(val.ConnectFlags), KeepAlive(val.KeepAlive)
 {
-	auto ProtocolNameExp = tString::Parse(data);
-	if (!ProtocolNameExp.has_value())
-		return {};
-
-	constexpr std::size_t VHeaderSize = sizeof(ProtocolLevel) + sizeof(ConnectFlags) + sizeof(KeepAlive);
-	if (VHeaderSize > data.size())
-		return {};
-
-	tVariableHeaderCONNECT VHeader{};
-	VHeader.ProtocolName = *ProtocolNameExp;
-	VHeader.ProtocolLevel = data[0];
-	VHeader.ConnectFlags.Value = data[1];
-	data.Skip(2);
-	auto KeepAliveExp = tUInt16::Parse(data);
-	if (!KeepAliveExp.has_value())
-		return {};
-	VHeader.KeepAlive = *KeepAliveExp;
-
-	return VHeader;
 }
 
-std::string tVariableHeaderCONNECT::ToString() const
+tContentCONNECT::tVariableHeader& tContentCONNECT::tVariableHeader::operator=(tVariableHeader&& val) noexcept
 {
-	std::string Str("Protocol");
-	Str += " name: " + ProtocolName;
-	Str += ", level: " + std::to_string(ProtocolLevel);
-	Str += "; Clean session: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.CleanSession));
-	Str += "; Will";
-	Str += " flag: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.WillFlag));
-	Str += ", QoS: " + mqtt::ToString(static_cast<tQoS>(ConnectFlags.Field.WillQoS));
-	Str += ", retain: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.WillRetain));
-	Str += "; User";
-	Str += " name: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.UserNameFlag));
-	Str += ", password: " + mqtt::ToString(static_cast<bool>(ConnectFlags.Field.PasswordFlag));
-	Str += "; Keep alive: " + std::to_string(KeepAlive.Value) + " s";
-	return Str;
+	if (this == &val)
+		return *this;
+	ProtocolName = std::move(val.ProtocolName);
+	ProtocolLevel = val.ProtocolLevel;
+	ConnectFlags = val.ConnectFlags;
+	KeepAlive = val.KeepAlive;
+	return *this;
 }
 
-std::vector<std::uint8_t> tVariableHeaderCONNECT::ToVector() const
-{
-	std23::vector<std::uint8_t> Data = ProtocolName.ToVector();
-	Data.push_back(ProtocolLevel);
-	Data.push_back(ConnectFlags.Value);
-	Data.append_range(KeepAlive.ToVector());
-	return Data;
-}
-
-bool tVariableHeaderCONNECT::operator==(const tVariableHeaderCONNECT& val) const
+bool tContentCONNECT::tVariableHeader::operator==(const tVariableHeader& val) const
 {
 	return ProtocolName == val.ProtocolName && ProtocolLevel == val.ProtocolLevel && ConnectFlags.Value == val.ConnectFlags.Value && KeepAlive.Value == val.KeepAlive.Value;
 }
 
-std::optional<tPayloadCONNECT> tPayloadCONNECT::Parse(const tVariableHeaderCONNECT& variableHeader, tSpan& data)
+tContentCONNECT::tPayload::tPayload(tPayload&& val) noexcept
+	:ClientId(val.ClientId), WillTopic(std::move(val.WillTopic)), WillMessage(std::move(val.WillMessage)), UserName(std::move(val.UserName)), Password(std::move(val.Password))
 {
-	tPayloadCONNECT Payload{};
-	// These fields, if present, MUST appear in the order Client Identifier, Will Topic, Will Message, User Name, Password
-	auto StrExp = tString::Parse(data);
-	if (!StrExp.has_value())
-		return {};
-	Payload.ClientId = StrExp.value();
-
-	if (variableHeader.ConnectFlags.Field.WillFlag)
-	{
-		StrExp = tString::Parse(data);
-		if (!StrExp.has_value())
-			return {};
-		Payload.WillTopic = StrExp.value();
-
-		StrExp = tString::Parse(data);
-		if (!StrExp.has_value())
-			return {};
-		Payload.WillMessage = StrExp.value();
-	}
-
-	if (variableHeader.ConnectFlags.Field.UserNameFlag)
-	{
-		StrExp = tString::Parse(data);
-		if (!StrExp.has_value())
-			return {};
-		Payload.UserName = StrExp.value();
-
-		StrExp = tString::Parse(data);
-		if (!StrExp.has_value())
-			return {};
-		Payload.Password = StrExp.value();
-	}
-
-	return Payload;
 }
 
-std::string tPayloadCONNECT::ToString() const
+tContentCONNECT::tPayload& tContentCONNECT::tPayload::operator=(tPayload&& val) noexcept
 {
-	std::string Str;
-	Str += "Client ID: " + ClientId;
-	if (WillTopic.has_value())
-		Str += ", Will topic: " + *WillTopic;
-	if (WillMessage.has_value())
-		Str += ", Will message: " + *WillMessage;
-	if (UserName.has_value())
-		Str += ", User name: " + *UserName;
-	if (Password.has_value())
-		Str += ", Password: " + *Password;
+	if (this == &val)
+		return *this;
+	ClientId = val.ClientId;
+	WillTopic = std::move(val.WillTopic);
+	WillMessage = std::move(val.WillMessage);
+	UserName = std::move(val.UserName);
+	Password = std::move(val.Password);
+	return *this;
+}
+
+bool tContentCONNECT::tPayload::operator==(const tPayload& val) const
+{
+	return ClientId == val.ClientId && WillTopic == val.WillTopic && WillMessage == val.WillMessage && UserName == val.UserName && Password == val.Password;
+}
+
+tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
+	:FixedHeader(GetFixedHeader())
+{
+	VariableHeader.ProtocolName = DefaultProtocolName;
+	VariableHeader.ProtocolLevel = DefaultProtocolLevel;
+	VariableHeader.ConnectFlags.Field.CleanSession = cleanSession ? 1 : 0;
+	VariableHeader.KeepAlive.Value = keepAlive;
+
+	SetClientId(clientId);
+	SetWill(willQos, willRetain, willTopic, willMessage);
+	SetUser(userName, password);
+}
+
+tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage)
+	:tContentCONNECT(cleanSession, keepAlive, clientId, willQos, willRetain, willTopic, willMessage, "", "")
+{
+}
+
+tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId)
+	:tContentCONNECT(cleanSession, keepAlive, clientId, tQoS::AtMostOnceDelivery, false, "", "", "", "")
+{
+}
+
+tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, const std::string& userName, const std::string& password)
+	:tContentCONNECT(cleanSession, keepAlive, clientId, tQoS::AtMostOnceDelivery, false, "", "", userName, password)
+{
+}
+
+tContentCONNECT::tContentCONNECT(tContentCONNECT&& val) noexcept
+	:FixedHeader(val.FixedHeader), VariableHeader(std::move(val.VariableHeader)), Payload(std::move(val.Payload))
+{
+}
+
+std::optional<tContentCONNECT> tContentCONNECT::Parse(tSpan& data)
+{
+	std::optional<std::pair<tFixedHeader, std::size_t>> FixedHeaderOpt = tFixedHeader::Parse(data);
+	if (!FixedHeaderOpt.has_value())
+		return {};
+
+	tContentCONNECT Content{};
+	Content.FixedHeader = FixedHeaderOpt->first;
+
+	auto ProtocolNameOpt = tString::Parse(data);
+	if (!ProtocolNameOpt.has_value())
+		return {};
+
+	Content.VariableHeader.ProtocolName = *ProtocolNameOpt;
+
+	if (data.size() < 2)
+		return {};
+	Content.VariableHeader.ProtocolLevel = data[0];
+	Content.VariableHeader.ConnectFlags.Value = data[1];
+	data.Skip(2);
+
+	auto KeepAliveOpt = tUInt16::Parse(data);
+	if (!KeepAliveOpt.has_value())
+		return {};
+	Content.VariableHeader.KeepAlive = *KeepAliveOpt;
+
+	// These fields, if present, MUST appear in the order Client Identifier, Will Topic, Will Message, User Name, Password
+	auto StrOpt = tString::Parse(data);
+	if (!StrOpt.has_value())
+		return {};
+	Content.Payload.ClientId = *StrOpt;
+
+	if (Content.VariableHeader.ConnectFlags.Field.WillFlag)
+	{
+		StrOpt = tString::Parse(data);
+		if (!StrOpt.has_value())
+			return {};
+		Content.Payload.WillTopic = *StrOpt;
+
+		StrOpt = tString::Parse(data);
+		if (!StrOpt.has_value())
+			return {};
+		Content.Payload.WillMessage = *StrOpt;
+	}
+
+	if (Content.VariableHeader.ConnectFlags.Field.UserNameFlag)
+	{
+		StrOpt = tString::Parse(data);
+		if (!StrOpt.has_value())
+			return {};
+		Content.Payload.UserName = StrOpt;
+
+		StrOpt = tString::Parse(data);
+		if (!StrOpt.has_value())
+			return {};
+		Content.Payload.Password = StrOpt;
+	}
+
+	return Content;
+}
+
+void tContentCONNECT::SetClientId(std::string val)
+{
+	// 579 The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that
+	// 580 contain only the characters
+	// 581 "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" [MQTT-3.1.3-5].
+	constexpr std::size_t ClientIdSizeMax = 23;
+	if (val.size() > ClientIdSizeMax)
+		val.resize(ClientIdSizeMax);
+	// 583 The Server MAY allow ClientIdï¿½s that contain more than 23 encoded bytes. The Server MAY allow
+	// 584 ClientIdï¿½s that contain characters not included in the list given above.
+	// 
+	// 586 A Server MAY allow a Client to supply a ClientId that has a length of zero bytes, however if it does so the
+	// 587 Server MUST treat this as a special case and assign a unique ClientId to that Client. It MUST then
+	// 588 process the CONNECT packet as if the Client had provided that unique ClientId [MQTT-3.1.3-6].
+	// 
+	// 590 If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1 [MQTT-3.1.3-7].
+	Payload.ClientId = val;
+}
+
+void tContentCONNECT::SetWill(tQoS qos, bool retain, const std::string& topic, const std::string& message)
+{
+	VariableHeader.ConnectFlags.Field.WillFlag = !topic.empty() && !message.empty();
+
+	if (VariableHeader.ConnectFlags.Field.WillFlag)
+	{
+		VariableHeader.ConnectFlags.Field.WillQoS = static_cast<std::uint8_t>(qos);
+		VariableHeader.ConnectFlags.Field.WillRetain = retain ? 1 : 0;
+		Payload.WillTopic = topic;
+		Payload.WillMessage = message;
+	}
+	else
+	{
+		VariableHeader.ConnectFlags.Field.WillQoS = 0; // 510 If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00) [MQTT-3.1.2-13].
+		VariableHeader.ConnectFlags.Field.WillRetain = 0; // 518 If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0[MQTT - 3.1.2 - 15].
+		Payload.WillTopic.reset();
+		Payload.WillMessage.reset();
+	}
+}
+
+void tContentCONNECT::SetUser(const std::string& name, const std::string& password)
+{
+	// 532 If the Password Flag is set to 0, a password MUST NOT be present in the payload [MQTT-3.1.2-20].
+	// 532 If the Password Flag is set to 1, a password MUST be present in the payload [MQTT-3.1.2-21].
+	// 533 If the User Name Flag is set to 0, the Password Flag MUST be set to 0 [MQTT-3.1.2-22].
+	VariableHeader.ConnectFlags.Field.UserNameFlag = !name.empty();
+	VariableHeader.ConnectFlags.Field.PasswordFlag = !name.empty() && !password.empty();
+
+	if (VariableHeader.ConnectFlags.Field.UserNameFlag)
+	{
+		Payload.UserName = name;
+	}
+	else
+	{
+		Payload.UserName.reset();
+	}
+
+	if (VariableHeader.ConnectFlags.Field.PasswordFlag)
+	{
+		Payload.Password = password;
+	}
+	else
+	{
+		Payload.Password.reset();
+	}
+}
+
+std::string tContentCONNECT::ToString() const
+{
+	std::string Str = FixedHeader.ToString(true);
+	Str += " Protocol";
+	Str += " name: " + VariableHeader.ProtocolName;
+	Str += ", level: " + std::to_string(VariableHeader.ProtocolLevel);
+	Str += "; Clean session: " + mqtt::ToString(static_cast<bool>(VariableHeader.ConnectFlags.Field.CleanSession));
+	Str += "; Will";
+	Str += " flag: " + mqtt::ToString(static_cast<bool>(VariableHeader.ConnectFlags.Field.WillFlag));
+	Str += ", QoS: " + mqtt::ToString(static_cast<tQoS>(VariableHeader.ConnectFlags.Field.WillQoS));
+	Str += ", retain: " + mqtt::ToString(static_cast<bool>(VariableHeader.ConnectFlags.Field.WillRetain));
+	Str += "; User";
+	Str += " name: " + mqtt::ToString(static_cast<bool>(VariableHeader.ConnectFlags.Field.UserNameFlag));
+	Str += ", password: " + mqtt::ToString(static_cast<bool>(VariableHeader.ConnectFlags.Field.PasswordFlag));
+	Str += "; Keep alive: " + std::to_string(VariableHeader.KeepAlive.Value) + " s";
+	Str += "; Client ID: " + Payload.ClientId;
+	Str += mqtt::ToString(", Will topic: ", Payload.WillTopic);
+	Str += mqtt::ToString(", Will message: ", Payload.WillMessage);
+	Str += mqtt::ToString(", User name: ", Payload.UserName);
+	Str += mqtt::ToString(", Password: ", Payload.Password);
 	return Str;
 }
 
-std::vector<std::uint8_t> tPayloadCONNECT::ToVector() const
+std::vector<std::uint8_t> tContentCONNECT::ToVector() const
 {
+	std23::vector<std::uint8_t> Data = VariableHeader.ProtocolName.ToVector();
+	Data.push_back(VariableHeader.ProtocolLevel);
+	Data.push_back(VariableHeader.ConnectFlags.Value);
+	Data.append_range(VariableHeader.KeepAlive.ToVector());
 	// These fields, if present, MUST appear in the order Client Identifier, Will Topic, Will Message, User Name, Password
-	std23::vector<std::uint8_t> Data = ClientId.ToVector(); // The Server MUST allow ClientIds which are between 1 and 23 UTF - 8 encoded bytes in length, and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
-	if (WillTopic.has_value())
-		Data.append_range(WillTopic->ToVector());
-	if (WillMessage.has_value())
-		Data.append_range(WillMessage->ToVector());
-	if (UserName.has_value())
-		Data.append_range(UserName->ToVector());
-	if (Password.has_value())
-		Data.append_range(Password->ToVector());
+	Data.append_range(Payload.ClientId.ToVector()); // The Server MUST allow ClientIds which are between 1 and 23 UTF - 8 encoded bytes in length, and that contain only the characters "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".
+	Data.append_range(mqtt::ToVector(Payload.WillTopic));
+	Data.append_range(mqtt::ToVector(Payload.WillMessage));
+	Data.append_range(mqtt::ToVector(Payload.UserName));
+	Data.append_range(mqtt::ToVector(Payload.Password));
+	Data.insert_range(Data.begin(), FixedHeader.ToVector(Data.size()));
 	return Data;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// CONNACK: header & payload
-
-std::optional<tVariableHeaderCONNACK> tVariableHeaderCONNACK::Parse(const hidden::tFixedHeader& fixedHeader, tSpan& data)
+tContentCONNECT& tContentCONNECT::operator=(tContentCONNECT&& val) noexcept
 {
-	if (data.size() < GetSize())
-		return {};
-
-	tVariableHeaderCONNACK VHeader{};
-	VHeader.ConnectAcknowledgeFlags.Value = data[0];
-	VHeader.ConnectReturnCode = static_cast<tConnectReturnCode>(data[1]);
-
-	data.Skip(GetSize());
-
-	return VHeader;
+	if (this == &val)
+		return *this;
+	FixedHeader = val.FixedHeader;
+	VariableHeader = std::move(val.VariableHeader);
+	Payload = std::move(val.Payload);
+	return *this;
 }
 
-std::string tVariableHeaderCONNACK::ToString() const
-{
-	std::string Str("ReturnCode: ");
-	Str += mqtt::ToString(ConnectReturnCode);
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// CONNACK
 
-	if (ConnectReturnCode != tConnectReturnCode::ConnectionAccepted)
+tContentCONNACK::tContentCONNACK(bool sessionPresent, tConnectReturnCode connectRetCode)
+	:FixedHeader(GetFixedHeader())
+{
+	VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent = sessionPresent;
+	VariableHeader.ConnectReturnCode = connectRetCode;
+}
+
+std::optional<tContentCONNACK> tContentCONNACK::Parse(tSpan& data)
+{
+	std::optional<std::pair<tFixedHeader, std::size_t>> FixedHeaderOpt = tFixedHeader::Parse(data);
+	if (!FixedHeaderOpt.has_value() || FixedHeaderOpt->second != 2)
+		return {};
+
+	tContentCONNACK Content{};
+	Content.FixedHeader = FixedHeaderOpt->first;
+
+	Content.VariableHeader.ConnectAcknowledgeFlags.Value = data[0];
+	Content.VariableHeader.ConnectReturnCode = static_cast<tConnectReturnCode>(data[1]);
+	data.Skip(2);
+
+	return Content;
+}
+
+std::string tContentCONNACK::ToString() const
+{
+	std::string Str = FixedHeader.ToString(true);
+	Str += " ReturnCode: ";
+	Str += mqtt::ToString(VariableHeader.ConnectReturnCode);
+
+	if (VariableHeader.ConnectReturnCode != tConnectReturnCode::ConnectionAccepted)
 		return Str;
 
 	Str += "; Session Present: ";
-	Str += ConnectAcknowledgeFlags.Field.SessionPresent ?
-			mqtt::ToString(ConnectAcknowledgeFlags.Field.SessionPresent, "Continued") : mqtt::ToString(ConnectAcknowledgeFlags.Field.SessionPresent, "Clean");
+	Str += VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent ?
+		mqtt::ToString(VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent, "Continued") : mqtt::ToString(VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent, "Clean");
 	return Str;
 }
 
-std::vector<std::uint8_t> tVariableHeaderCONNACK::ToVector() const
+std::vector<std::uint8_t> tContentCONNACK::ToVector() const
 {
-	std::vector<std::uint8_t> Data;
-	Data.push_back(ConnectAcknowledgeFlags.Value);
-	Data.push_back(static_cast<std::uint8_t>(ConnectReturnCode));
+	std23::vector<std::uint8_t> Data;
+	Data.push_back(VariableHeader.ConnectAcknowledgeFlags.Value);
+	Data.push_back(static_cast<std::uint8_t>(VariableHeader.ConnectReturnCode));
+	Data.insert_range(Data.begin(), FixedHeader.ToVector(Data.size()));
 	return Data;
-}
-
-bool tVariableHeaderCONNACK::operator==(const tVariableHeaderCONNACK& val) const
-{
-	return ConnectAcknowledgeFlags.Value == val.ConnectAcknowledgeFlags.Value && ConnectReturnCode == val.ConnectReturnCode;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// PUBLISH: header & payload
+// PUBLISH
 
-std::optional<tVariableHeaderPUBLISH> tVariableHeaderPUBLISH::Parse(const hidden::tFixedHeader& fixedHeader, tSpan& data)
+tContentPUBLISH::tVariableHeader::tVariableHeader(tVariableHeader&& val) noexcept
+	:PacketId(val.PacketId), TopicName(std::move(val.TopicName))
 {
-	auto StrExp = tString::Parse(data);
-	if (!StrExp.has_value())
+}
+
+tContentPUBLISH::tVariableHeader& tContentPUBLISH::tVariableHeader::operator=(tVariableHeader&& val) noexcept
+{
+	if (this == &val)
+		return *this;
+	PacketId = val.PacketId;
+	TopicName = std::move(val.TopicName);
+	return *this;
+}
+
+tContentPUBLISH::tContentPUBLISH(bool dup, bool retain, const std::string& topicName)
+	:FixedHeader(GetFixedHeader(dup, tQoS::AtMostOnceDelivery, retain))
+{
+	VariableHeader.TopicName = topicName;
+}
+
+tContentPUBLISH::tContentPUBLISH(bool dup, bool retain, const std::string& topicName, const std::vector<std::uint8_t>& payload)
+	:FixedHeader(GetFixedHeader(dup, tQoS::AtMostOnceDelivery, retain))
+{
+	VariableHeader.TopicName = topicName;
+	Payload = payload;
+}
+
+tContentPUBLISH::tContentPUBLISH(bool dup, bool retain, const std::string& topicName, tQoS qos, tUInt16 packetId)
+	:FixedHeader(GetFixedHeader(dup, qos, retain))
+{
+	VariableHeader.TopicName = topicName;
+	VariableHeader.PacketId = packetId;
+}
+
+tContentPUBLISH::tContentPUBLISH(bool dup, bool retain, const std::string& topicName, tQoS qos, tUInt16 packetId, const std::vector<std::uint8_t>& payload)
+	:FixedHeader(GetFixedHeader(dup, qos, retain))
+{
+	VariableHeader.TopicName = topicName;
+	VariableHeader.PacketId = packetId;
+	Payload = payload;
+}
+
+tContentPUBLISH::tContentPUBLISH(tContentPUBLISH&& val) noexcept
+	:FixedHeader(val.FixedHeader)
+{
+	VariableHeader = std::move(val.VariableHeader);
+	Payload = std::move(val.Payload);
+}
+
+std::optional<tContentPUBLISH> tContentPUBLISH::Parse(tSpan& data)
+{
+	std::optional<std::pair<tFixedHeader, std::size_t>> FixedHeaderOpt = tFixedHeader::Parse(data);
+	if (!FixedHeaderOpt.has_value())
 		return {};
 
-	tVariableHeaderPUBLISH VHeader{};
-	VHeader.TopicName = *StrExp;
+	tContentPUBLISH Content{};
+	Content.FixedHeader = FixedHeaderOpt->first;
 
-	if (!tPacketPUBLISH::IsPacketIdPresent(fixedHeader.Field.Flags))
-		return VHeader;
-
-	auto PacketIdExp = tUInt16::Parse(data);
-	if (!PacketIdExp.has_value())
+	std::optional<std::string> StrOpt = tString::Parse(data);
+	if (!StrOpt.has_value())
 		return {};
+	Content.VariableHeader.TopicName = *StrOpt;
 
-	VHeader.PacketId = *PacketIdExp;
-
-	return VHeader;
-}
-
-std::string tVariableHeaderPUBLISH::ToString() const
-{
-	std::string Str;
-	Str += "Topic name: " + TopicName;
-	if (PacketId.has_value())
-		Str += "; Packet ID: " + std::to_string(PacketId->Value);
-	return Str;
-}
-
-std::vector<std::uint8_t> tVariableHeaderPUBLISH::ToVector() const
-{
-	std23::vector<std::uint8_t> Data = TopicName.ToVector();
-	if (PacketId.has_value())
-		Data.append_range(PacketId->ToVector());
-	return Data;
-}
-
-bool tVariableHeaderPUBLISH::operator==(const tVariableHeaderPUBLISH& val) const
-{
-	return
-		TopicName == val.TopicName &&
-		(PacketId.has_value() != val.PacketId.has_value() ? false : PacketId.has_value() == false ? true : *PacketId == *val.PacketId);
-}
-
-std::optional<tPayloadPUBLISH> tPayloadPUBLISH::Parse(const tVariableHeaderPUBLISH& variableHeader, tSpan& data)
-{
+	if (IsPacketIdPresent(Content.FixedHeader.Field.Flags))
+	{
+		std::optional<tUInt16> PacketIdOpt = tUInt16::Parse(data);
+		if (!PacketIdOpt.has_value())
+			return {};
+		Content.VariableHeader.PacketId = *PacketIdOpt;
+	}
+		
 	// 819 The Payload contains the Application Message that is being published.The content and format of the
 	// 820 data is application specific.The length of the payload can be calculated by subtracting the length of the
 	// 821 variable header from the Remaining Length field that is in the Fixed Header.It is valid for a PUBLISH
 	// 822 Packet to contain a zero length payload.
-	tPayloadPUBLISH Payload{};
-	Payload.Data = std::vector<std::uint8_t>(data.begin(), data.end());
-	return Payload;
+	Content.Payload = std::vector<std::uint8_t>(data.begin(), data.end());
+
+	return Content;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// PUBACK: header & payload
-
-std::optional<tVariableHeaderPUBACK> tVariableHeaderPUBACK::Parse(const hidden::tFixedHeader& fixedHeader, tSpan& data)
+std::string tContentPUBLISH::ToString() const
 {
-	auto PacketIdExp = tUInt16::Parse(data);
-	if (!PacketIdExp.has_value())
-		return {};
-
-	tVariableHeaderPUBACK VHeader{};
-	VHeader.PacketId = *PacketIdExp;
-
-	return VHeader;
+	std::string Str = FixedHeader.ToString(true);
+	Str += " Topic name: " + VariableHeader.TopicName;
+	Str += mqtt::ToString("; Packet ID: ", VariableHeader.PacketId);
+	Str += std::string("; Payload size: ") + std::to_string(Payload.size());
+	return Str;
 }
 
-std::string tVariableHeaderPUBACK::ToString() const
+std::vector<std::uint8_t> tContentPUBLISH::ToVector() const
 {
-	return "Packet ID: " + std::to_string(PacketId.Value);
+	std23::vector<std::uint8_t> Data;
+	Data.append_range(VariableHeader.TopicName.ToVector());
+	if (VariableHeader.PacketId.has_value())
+		Data.append_range(VariableHeader.PacketId->ToVector());
+	Data.append_range(Payload);
+	Data.insert_range(Data.begin(), FixedHeader.ToVector(Data.size()));
+	return Data;
+}
+
+tContentPUBLISH& tContentPUBLISH::operator=(tContentPUBLISH&& val) noexcept
+{
+	if (this == &val)
+		return *this;
+	FixedHeader = val.FixedHeader;
+	VariableHeader = std::move(val.VariableHeader);
+	Payload = std::move(val.Payload);
+	return *this;
+}
+
+bool tContentPUBLISH::IsPacketIdPresent(std::uint8_t flags)
+{
+	tFixedHeaderPUBLISHFlags Flags;
+	Flags.Value = flags;
+	return static_cast<tQoS>(Flags.Field.QoS) == tQoS::AtLeastOnceDelivery || static_cast<tQoS>(Flags.Field.QoS) == tQoS::ExactlyOnceDelivery;
+}
+
+tFixedHeader tContentPUBLISH::GetFixedHeader(bool dup, tQoS qos, bool retain) const
+{
+	tFixedHeaderPUBLISHFlags Flags;
+
+	Flags.Field.DUP = dup ? 1 : 0;
+	Flags.Field.QoS = static_cast<std::uint8_t>(qos);
+	Flags.Field.RETAIN = retain ? 1 : 0;
+
+	return MakeFixedHeader(tControlPacketType::PUBLISH, Flags.Value);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SUBSCRIBE: header & payload
-
+/*
 std::optional<tPayloadSUBSCRIBE::tTopicFilter> tPayloadSUBSCRIBE::tTopicFilter::Parse(tSpan& data)
 {
 	auto StrExp = tString::Parse(data);
@@ -605,140 +843,8 @@ std::vector<std::uint8_t> tPayloadUNSUBSCRIBE::ToVector() const
 	std::ranges::for_each(TopicFilters, [&Data](const tString& tf) { Data.append_range(tf.ToVector()); });
 	return Data;
 }
-
+*/
 } // hidden
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-tPacketCONNECT::tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
-	:tPacketBase(GetFixedHeader())
-{
-	m_VariableHeader = hidden::tVariableHeaderCONNECT{};
-	m_VariableHeader->ConnectFlags.Field.CleanSession = cleanSession ? 1 : 0;
-	m_VariableHeader->KeepAlive.Value = keepAlive;
-
-	m_Payload = hidden::tPayloadCONNECT{};
-
-	SetClientId(clientId);
-	SetWill(willQos, willRetain, willTopic, willMessage);
-	SetUser(userName, password);
-}
-
-
-void tPacketCONNECT::SetClientId(std::string val)
-{
-	// 579 The Server MUST allow ClientIds which are between 1 and 23 UTF-8 encoded bytes in length, and that
-	// 580 contain only the characters
-	// 581 "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" [MQTT-3.1.3-5].
-	constexpr std::size_t ClientIdSizeMax = 23;
-	if (val.size() > ClientIdSizeMax)
-		val.resize(ClientIdSizeMax);
-	// 583 The Server MAY allow ClientId’s that contain more than 23 encoded bytes. The Server MAY allow
-	// 584 ClientId’s that contain characters not included in the list given above.
-	// 
-	// 586 A Server MAY allow a Client to supply a ClientId that has a length of zero bytes, however if it does so the
-	// 587 Server MUST treat this as a special case and assign a unique ClientId to that Client. It MUST then
-	// 588 process the CONNECT packet as if the Client had provided that unique ClientId [MQTT-3.1.3-6].
-	// 
-	// 590 If the Client supplies a zero-byte ClientId, the Client MUST also set CleanSession to 1 [MQTT-3.1.3-7].
-	m_Payload->ClientId = val;
-}
-
-void tPacketCONNECT::SetWill(tQoS qos, bool retain, const std::string& topic, const std::string& message)
-{
-	m_VariableHeader->ConnectFlags.Field.WillFlag = !topic.empty() && !message.empty();
-
-	if (m_VariableHeader->ConnectFlags.Field.WillFlag)
-	{
-		m_VariableHeader->ConnectFlags.Field.WillQoS = static_cast<std::uint8_t>(qos);
-		m_VariableHeader->ConnectFlags.Field.WillRetain = retain ? 1 : 0;
-		m_Payload->WillTopic = topic;
-		m_Payload->WillMessage = message;
-	}
-	else
-	{
-		m_VariableHeader->ConnectFlags.Field.WillQoS = 0; // 510 If the Will Flag is set to 0, then the Will QoS MUST be set to 0 (0x00) [MQTT-3.1.2-13].
-		m_VariableHeader->ConnectFlags.Field.WillRetain = 0; // 518 If the Will Flag is set to 0, then the Will Retain Flag MUST be set to 0[MQTT - 3.1.2 - 15].
-		m_Payload->WillTopic.reset();
-		m_Payload->WillMessage.reset();
-	}
-}
-
-void tPacketCONNECT::SetUser(const std::string& name, const std::string& password)
-{
-	// 532 If the Password Flag is set to 0, a password MUST NOT be present in the payload [MQTT-3.1.2-20].
-	// 532 If the Password Flag is set to 1, a password MUST be present in the payload [MQTT-3.1.2-21].
-	// 533 If the User Name Flag is set to 0, the Password Flag MUST be set to 0 [MQTT-3.1.2-22].
-	m_VariableHeader->ConnectFlags.Field.UserNameFlag = !name.empty();
-	m_VariableHeader->ConnectFlags.Field.PasswordFlag = !name.empty() && !password.empty();
-
-	if (m_VariableHeader->ConnectFlags.Field.UserNameFlag)
-	{
-		m_Payload->UserName = name;
-	}
-	else
-	{
-		m_Payload->UserName.reset();
-	}
-
-	if (m_VariableHeader->ConnectFlags.Field.PasswordFlag)
-	{
-		m_Payload->Password = password;
-	}
-	else
-	{
-		m_Payload->Password.reset();
-	}
-}
-
-tPacketPUBLISH::tPacketPUBLISH(bool dup, bool retain, const std::string& topicName, tQoS qos, tUInt16 packetId)
-	:tPacketBase(GetFixedHeader(dup, qos, retain))
-{
-	m_VariableHeader = hidden::tVariableHeaderPUBLISH{};
-	m_VariableHeader->TopicName = topicName;
-	if (IsPacketIdPresent(m_FixedHeader.Field.Flags))
-		m_VariableHeader->PacketId = packetId;
-	//else - error: no PacketId
-}
-
-tPacketPUBLISH::tPacketPUBLISH(bool dup, bool retain, const std::string& topicName, tQoS qos, tUInt16 packetId, const std::vector<std::uint8_t>& payloadData)
-	:tPacketPUBLISH(dup, retain, topicName, qos, packetId)
-{
-	m_Payload = hidden::tPayloadPUBLISH{};
-	m_Payload->Data = payloadData;
-}
-
-tPacketPUBLISH::tPacketPUBLISH(bool dup, bool retain, const std::string& topicName)
-	:tPacketBase(GetFixedHeader(dup, tQoS::AtMostOnceDelivery, retain))
-{
-	m_VariableHeader = hidden::tVariableHeaderPUBLISH{};
-	m_VariableHeader->TopicName = topicName;
-}
-
-tPacketPUBLISH::tPacketPUBLISH(bool dup, bool retain, const std::string& topicName, const std::vector<std::uint8_t>& payloadData)
-	:tPacketPUBLISH(dup, retain, topicName)
-{
-	m_Payload = hidden::tPayloadPUBLISH{};
-	m_Payload->Data = payloadData;
-}
-
-bool tPacketPUBLISH::IsPacketIdPresent(std::uint8_t flags)
-{
-	hidden::tFixedHeaderPUBLISHFlags Flags;
-	Flags.Value = flags;
-	return static_cast<tQoS>(Flags.Field.QoS) == tQoS::AtLeastOnceDelivery || static_cast<tQoS>(Flags.Field.QoS) == tQoS::ExactlyOnceDelivery;
-}
-
-hidden::tFixedHeader tPacketPUBLISH::GetFixedHeader(bool dup, tQoS qos, bool retain)
-{
-	hidden::tFixedHeaderPUBLISHFlags Flags;
-
-	Flags.Field.DUP = dup ? 1 : 0;
-	Flags.Field.QoS = static_cast<std::uint8_t>(qos);
-	Flags.Field.RETAIN = retain ? 1 : 0;
-
-	return hidden::MakeFixedHeader(tControlPacketType::PUBLISH, Flags.Value);
-}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -746,19 +852,10 @@ std::optional<tControlPacketType> TestPacket(tSpan& data)
 {
 	if (data.size() < hidden::PacketSizeMin)
 		return {};
-
-	hidden::tFixedHeader FHeader = data[0];
-	data.Skip(1);
-
-	const auto ControlPacketType = static_cast<tControlPacketType>(FHeader.Field.ControlPacketType);
-	if (ControlPacketType < tControlPacketType::CONNECT || ControlPacketType > tControlPacketType::DISCONNECT)
+	std::optional<std::pair<hidden::tFixedHeader, std::size_t>> FixedHeaderOpt = hidden::tFixedHeader::Parse(data);
+	if (!FixedHeaderOpt.has_value())
 		return {};
-
-	auto RLengtExp = hidden::tRemainingLength::Parse(data);
-	if (!RLengtExp.has_value() || *RLengtExp > data.size())
-		return {};
-
-	return FHeader.GetControlPacketType();
+	return FixedHeaderOpt->first.GetControlPacketType();
 }
 
 std::optional<tControlPacketType> TestPacket(const std::vector<std::uint8_t>& data)

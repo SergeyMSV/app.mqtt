@@ -8,4 +8,4 @@ xcopy /Y %LIB_UTILS%\utilsLog.*
 xcopy /Y %LIB_UTILS%\utilsPacketMQTT.*
 xcopy /Y %LIB_UTILS%\utilsStd.*
 
-pause
+rem pause

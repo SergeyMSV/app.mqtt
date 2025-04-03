@@ -20,11 +20,14 @@
       <Filter>LIB.Utils</Filter>
     </ClCompile>
     <ClCompile Include="main_connection.cpp" />
-    <ClCompile Include="..\LIB.Share\utils.cpp">
-      <Filter>LIB.Share</Filter>
-    </ClCompile>
     <ClCompile Include="..\LIB.Utils\utilsException.cpp">
       <Filter>LIB.Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LIB.Share\utilsShare.cpp">
+      <Filter>LIB.Share</Filter>
+    </ClCompile>
+    <ClCompile Include="..\LIB.Share\utilsShareMQTT.cpp">
+      <Filter>LIB.Share</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -53,7 +56,10 @@
     </ClInclude>
     <ClInclude Include="libConfig.h" />
     <ClInclude Include="main.h" />
-    <ClInclude Include="..\LIB.Share\utils.h">
+    <ClInclude Include="..\LIB.Share\utilsShare.h">
+      <Filter>LIB.Share</Filter>
+    </ClInclude>
+    <ClInclude Include="..\LIB.Share\utilsShareMQTT.h">
       <Filter>LIB.Share</Filter>
     </ClInclude>
   </ItemGroup>

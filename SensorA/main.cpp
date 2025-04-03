@@ -11,7 +11,7 @@
 
 #include <utilsException.h>
 #include <utilsExits.h>
-#include <utilsPacketMQTT.h>
+#include <utilsShare.h>
 
 using boost::asio::ip::tcp;
 
@@ -23,7 +23,7 @@ int main()
 	{
 		try
 		{
-			utils::tMeasureDuration Measure("Sending measurements...");
+			utils::share::tMeasureDuration Measure("Sending measurements...");
 
 			boost::asio::io_context ioc;
 
@@ -55,8 +55,10 @@ int main()
 			g_Log.Exception(ex.what());
 		}
 
-		utils::tMeasureDuration Measure("Sleeping...");
-		std::this_thread::sleep_for(std::chrono::seconds(10)); // [#] pause - it can be in the settings
+		g_Log.TestMessage("NO CONNECTION");
+
+		utils::share::tMeasureDuration Measure("Sleeping...");
+		std::this_thread::sleep_for(std::chrono::seconds(60)); // [#] pause - it can be in the settings
 	}
 
 	return utils::exit_code::EX_OK;

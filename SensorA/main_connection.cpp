@@ -9,72 +9,13 @@
 
 #include <boost/asio.hpp>
 
-#include <utilsException.h>
 #include <utilsExits.h>
-#include <utilsPacketMQTT.h>
+#include <utilsShare.h>
+#include <utilsShareMQTT.h>
 
-using boost::asio::ip::tcp;
-namespace mqtt = utils::packet::mqtt;
-
-using tReceivePacketResult = std::pair<mqtt::tControlPacketType, mqtt::tSpan>;
-
-std::optional<tReceivePacketResult> ReceivePacket(tcp::socket& socket, std::vector<std::uint8_t>& buffer)
-{
-	boost::system::error_code Error;
-	std::size_t SizeRcv = socket.read_some(boost::asio::buffer(buffer), Error);
-	if (!SizeRcv)
-		return {};
-
-	mqtt::tSpan Span(buffer, SizeRcv);
-	auto Res = mqtt::TestPacket(Span);
-	if (!Res.has_value())
-		THROW_RUNTIME_ERROR("ER: NO PACKET 1"); // Res.error() - put it into the message
-
-	return tReceivePacketResult{ *Res, mqtt::tSpan(buffer, SizeRcv) };
-}
-
-template <class tCmd, class tRsp>
-tRsp TaskTransactionHandler(tcp::socket& socket, const tCmd& packet)
-{
-	utils::tMeasureDuration Measure("TTH");
-
-	g_Log.PacketSent(packet.ToString());
-
-	auto PackVector = packet.ToVector();
-
-	socket.write_some(boost::asio::buffer(PackVector));
-
-	std::vector<std::uint8_t> ReceiveBuffer(128);
-
-	auto Received = ReceivePacket(socket, ReceiveBuffer);
-	if (!Received.has_value())
-		THROW_RUNTIME_ERROR("No data has been received.");
-
-	if (Received->first != tRsp::GetControlPacketType())
-		THROW_RUNTIME_ERROR("Received response of an unexpected type.");
-
-	auto Pack_parsed = tRsp::Parse(Received->second);
-	if (!Pack_parsed.has_value())
-		THROW_RUNTIME_ERROR("Received response has not been parsed."); // Res.error() - put it into the message
-
-	g_Log.PacketReceived(Pack_parsed->ToString());
-
-	return std::move(Pack_parsed.value());
-}
-
-template<class T>
-void TaskTransactionWait(std::future<T>& future, std::uint32_t time_ms, const std::string& label)
-{
-	const std::uint32_t Pause = 10; // ms
-	std::uint32_t PauseCount = time_ms / Pause;
-	while (future.wait_for(std::chrono::milliseconds(Pause)) != std::future_status::ready)
-	{
-		if (!PauseCount)
-			THROW_RUNTIME_ERROR(label + " exceeded timeout.");
-
-		--PauseCount;
-	}
-}
+//#define MQTT_PUBLISH_QOS_0
+//#define MQTT_PUBLISH_QOS_1
+#define MQTT_PUBLISH_QOS_2
 
 void TaskConnectionHandler(tcp::socket& socket, const std::string sensorData)
 {
@@ -83,42 +24,72 @@ void TaskConnectionHandler(tcp::socket& socket, const std::string sensorData)
 	{
 		//test::tMeasureDuration TCH("TCH-CONNECT");
 
-		mqtt::tPacketCONNECT PackCONNECT(false, KeepAlive, "duper_star", mqtt::tQoS::AtLeastOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
+		mqtt::tPacketCONNECT Pack(false, KeepAlive, "duper_star", mqtt::tQoS::AtLeastOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
 
-		std::future<mqtt::tPacketCONNACK> TaskFuture = std::async(std::launch::async, [&]() { return TaskTransactionHandler<mqtt::tPacketCONNECT, mqtt::tPacketCONNACK>(socket, PackCONNECT); });
-		//std::future<mqtt::tPacketCONNACK> TaskFuture = std::async(std::launch::async, TaskTransactionHandler, std::ref(socket), std::ref(PackCONNECT), mqtt::tControlPacketType::CONNACK);
+		std::future<std::optional<mqtt::tPacketCONNECT::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<mqtt::tPacketCONNECT>(socket, Pack); });
 
-		TaskTransactionWait(TaskFuture, 10000, "CONNECT");
+		utils::share::TaskTransactionWait(TaskFuture, 10000, "CONNECT");
 
-		auto Rsp = TaskFuture.get();
-		if (Rsp.GetVariableHeader().has_value())
-			std::cout << "SessPres: " << (int)Rsp.GetVariableHeader()->ConnectAcknowledgeFlags.Field.SessionPresent << '\n';
+		auto PackRsp = TaskFuture.get();
+		if (PackRsp.has_value())
+			std::cout << "SessPres: " << (int)PackRsp->GetVariableHeader().ConnectAcknowledgeFlags.Field.SessionPresent << '\n';
 	}
 	/////////////////////////////////////////////////////////////
-	constexpr std::uint16_t KeepAlive10ms = 100;// *100;
-	std::uint16_t PingCounter = KeepAlive10ms;
-	while(true)
+#ifdef MQTT_PUBLISH_QOS_0
 	{
-		//if ()
-		//{
-			// Send Data
-		//}
-
-		if (--PingCounter)
+		using tPackPublish = mqtt::tPacketPUBLISH<mqtt::tQoS::AtMostOnceDelivery>;
+		tPackPublish Pack(false, true, "SensorA_DateTime", std::vector<std::uint8_t>(sensorData.begin(), sensorData.end()));
+		std::future<std::optional<tPackPublish::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<tPackPublish>(socket, Pack); });
+		utils::share::TaskTransactionWait(TaskFuture, 10000, "PUBACK");
+		TaskFuture.get(); // in case of exception - get it here
+	}
+#endif // MQTT_PUBLISH_QOS_0
+#ifdef MQTT_PUBLISH_QOS_1
+	{
+		static std::uint16_t PacketId = 0;
+		using tPackPublish = mqtt::tPacketPUBLISH<mqtt::tQoS::AtLeastOnceDelivery>;
+		tPackPublish Pack(false, true, "SensorA_DateTime", ++PacketId, std::vector<std::uint8_t>(sensorData.begin(), sensorData.end()));
+		std::future<std::optional<tPackPublish::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<tPackPublish>(socket, Pack); });
+		utils::share::TaskTransactionWait(TaskFuture, 10000, "PUBACK");
+		auto PackRsp = TaskFuture.get(); // in case of exception - get it here
+		if (PackRsp.has_value())
+			std::cout << "rsp puback: " << (int)PackRsp->GetVariableHeader().PacketId.Value << '\n';
+	}
+#endif // MQTT_PUBLISH_QOS_1
+#ifdef MQTT_PUBLISH_QOS_2
+	{
+		static std::uint16_t PacketId = 0;
+		using tPackPublish = mqtt::tPacketPUBLISH<mqtt::tQoS::ExactlyOnceDelivery>;
+		tPackPublish Pack(false, true, "SensorA_DateTime", ++PacketId, std::vector<std::uint8_t>(sensorData.begin(), sensorData.end()));
+		std::future<std::optional<tPackPublish::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<tPackPublish>(socket, Pack); });
+		utils::share::TaskTransactionWait(TaskFuture, 10000, "PUBREC");
+		auto PackRsp = TaskFuture.get(); // in case of exception - get it here
+		if (PackRsp.has_value())
 		{
-			std::this_thread::sleep_for(std::chrono::milliseconds(100));
-			continue;
+			std::cout << "rsp pubrec: " << (int)PackRsp->GetVariableHeader().PacketId.Value << '\n';
+
+			mqtt::tPacketPUBREL Pack(PacketId);
+			std::future<std::optional<mqtt::tPacketPUBREL::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<mqtt::tPacketPUBREL>(socket, Pack); });
+			utils::share::TaskTransactionWait(TaskFuture, 10000, "PUBCOMP");
+
+			auto PackRsp = TaskFuture.get(); // in case of exception - get it here
+			if (PackRsp.has_value())
+			{
+				std::cout << "rsp pubcomp: " << (int)PackRsp->GetVariableHeader().PacketId.Value << '\n';
+			}
 		}
-		PingCounter = KeepAlive10ms;
+	}
+#endif // MQTT_PUBLISH_QOS_2
+	/////////////////////////////////////////////////////////////
+	{
+		mqtt::tPacketDISCONNECT Pack;
+		std::future<std::optional<mqtt::tPacketDISCONNECT::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<mqtt::tPacketDISCONNECT>(socket, Pack); });
 
-		//test::tMeasureDuration TCH("TCH-PING");
-
-		mqtt::tPacketPINGREQ PackPINGREQ;
-		std::future<mqtt::tPacketPINGRESP>TaskFuture = std::async(std::launch::async, [&]() { return TaskTransactionHandler<mqtt::tPacketPINGREQ, mqtt::tPacketPINGRESP>(socket, PackPINGREQ); });
-
-		TaskTransactionWait(TaskFuture, 10000, "PING");
+		utils::share::TaskTransactionWait(TaskFuture, 10000, "DISCONNECT");
 
 		TaskFuture.get(); // in case of exception - get it here
+
+		g_Log.TestMessage("Disconnected!");
 	}
 	/////////////////////////////////////////////////////////////
 }

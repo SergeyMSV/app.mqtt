@@ -10,7 +10,7 @@
 
 #include <utilsException.h>
 #include <utilsExits.h>
-#include <utilsPacketMQTT.h>
+#include <utilsShare.h>
 
 using boost::asio::ip::tcp;
 
@@ -22,7 +22,7 @@ int main()
 
 	try
 	{
-		utils::tMeasureDuration Measure("MAIN");
+		utils::share::tMeasureDuration Measure("MAIN");
 		//for (;;)
 		{
 			boost::asio::io_context ioc;
