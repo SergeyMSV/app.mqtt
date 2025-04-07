@@ -2,14 +2,13 @@
 
 #include <vector>
 
+#ifdef __cpp_lib_containers_ranges
+namespace std23 = std;
+#else // __cpp_lib_containers_ranges
 namespace utils
 {
 namespace std23
 {
-
-#ifdef __cpp_lib_containers_ranges
-using std::vector;
-#else // __cpp_lib_containers_ranges
 template<typename T>
 class vector : public std::vector<T>
 {
@@ -28,7 +27,8 @@ public:
 		this->insert(pos, range.cbegin(), range.cend());
 	}
 };
-#endif // __cpp_lib_containers_ranges
 
 }
 }
+
+#endif // __cpp_lib_containers_ranges

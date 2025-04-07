@@ -10,6 +10,7 @@
 
 #include "utilsStd.h"
 
+#include <algorithm>
 #include <optional>
 #include <span> // C++ 20
 #include <string>
@@ -61,7 +62,7 @@ enum class tQoS : std::uint8_t
 {
 	AtMostOnceDelivery, // (Fire and Forget)
 	AtLeastOnceDelivery, // (Acknowledged deliver)
-	ExactlyOnceDelivery,
+	ExactlyOnceDelivery, // (Assured Delivery)
 };
 
 enum class tConnectReturnCode : std::uint8_t
@@ -276,8 +277,6 @@ public:
 
 	static std::optional<tPacketBase> Parse(tSpan& data)
 	{
-		if (data.empty())
-			return {};
 		std::optional<TCont> Cont = TCont::Parse(data);
 		if (!Cont.has_value())
 			return {};
@@ -627,14 +626,21 @@ using tContentPUBACK = tContentPUB<tControlPacketType::PUBACK>;
 using tContentPUBREC = tContentPUB<tControlPacketType::PUBREC>;
 using tContentPUBREL = tContentPUB<tControlPacketType::PUBREL>;
 using tContentPUBCOMP = tContentPUB<tControlPacketType::PUBCOMP>;
+//using tContentUNSUBACK = tContentPUB<tControlPacketType::UNSUBACK>; // [TBD] tContentPUB = tContentPacketID = tContentACK
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SUBSCRIBE
-/*
-using tVariableHeaderSUBSCRIBE = tVariableHeaderPUBACK;
 
-struct tPayloadSUBSCRIBE
+struct tContentSUBSCRIBE
 {
+	tFixedHeader FixedHeader{};
+	struct tVariableHeader
+	{
+		tUInt16 PacketId;
+
+		bool operator==(const tVariableHeader& val) const = default;
+	}VariableHeader;
+
 	struct tTopicFilter
 	{
 		tString TopicFilter;
@@ -646,47 +652,66 @@ struct tPayloadSUBSCRIBE
 
 		std::vector<std::uint8_t> ToVector() const;
 
-		std::size_t GetSize() const { return TopicFilter.GetSize() + sizeof(QoS); }
-
 		bool operator==(const tTopicFilter&) const = default;
 	};
+	std::vector<tTopicFilter> Payload;
 
-	std::vector<tTopicFilter> TopicFilters;
+	typedef typename tFixedHeader fixed_header_type;
+	typedef typename tVariableHeader variable_header_type;
+	typedef typename std::vector<tTopicFilter> payload_type;
 
-	static std::optional<tPayloadSUBSCRIBE> Parse(const tVariableHeaderSUBSCRIBE& variableHeader, tSpan& data);
+	tContentSUBSCRIBE() = default;
+	explicit tContentSUBSCRIBE(tUInt16 packetId, const payload_type& topicFilters);
 
-	std::size_t GetSize() const;
+	static std::optional<tContentSUBSCRIBE> Parse(tSpan& data);
 
 	std::string ToString() const;
 
 	std::vector<std::uint8_t> ToVector() const;
 
-	bool operator==(const tPayloadSUBSCRIBE&) const = default;
+	bool operator==(const tContentSUBSCRIBE& val) const = default;
+
+private:
+	static tFixedHeader GetFixedHeader() { return MakeFixedHeader(tControlPacketType::SUBSCRIBE); }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SUBACK
 
-using tVariableHeaderSUBACK = tVariableHeaderPUBACK;
-
-struct tPayloadSUBACK
+struct tContentSUBACK
 {
-	tSubscribeReturnCode SubscribeReturnCode;
+	tFixedHeader FixedHeader{};
+	struct tVariableHeader
+	{
+		tUInt16 PacketId;
 
-	static std::optional<tPayloadSUBACK> Parse(const tVariableHeaderSUBACK& variableHeader, tSpan& data);
+		bool operator==(const tVariableHeader& val) const = default;
+	}VariableHeader;
 
-	static std::size_t GetSize() { return sizeof(tSubscribeReturnCode); }
+	std::vector<tSubscribeReturnCode> Payload;
+
+	typedef typename tFixedHeader fixed_header_type;
+	typedef typename tVariableHeader variable_header_type;
+	typedef typename std::vector<tSubscribeReturnCode> payload_type;
+
+	tContentSUBACK() = default;
+	tContentSUBACK(tUInt16 packetId, std::vector<tSubscribeReturnCode> payload);
+
+	static std::optional<tContentSUBACK> Parse(tSpan& data);
 
 	std::string ToString() const;
 
 	std::vector<std::uint8_t> ToVector() const;
 
-	bool operator==(const tPayloadSUBACK&) const = default;
+	bool operator==(const tContentSUBACK& val) const = default;
+
+private:
+	static tFixedHeader GetFixedHeader() { return MakeFixedHeader(tControlPacketType::SUBACK); }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // UNSUBSCRIBE
-
+/*
 using tVariableHeaderUNSUBSCRIBE = tVariableHeaderPUBACK;
 
 struct tPayloadUNSUBSCRIBE
@@ -737,8 +762,6 @@ public:
 	}
 	tPacketCONNACK(const hidden::tPacketBase<hidden::tContentCONNACK>& val) :tPacketBase(val) {} // for std::future<..>
 	tPacketCONNACK(hidden::tPacketBase<hidden::tContentCONNACK>&& val) :tPacketBase(std::move(val)) {} // for std::future<..>
-
-	//static tControlPacketType GetControlPacketType() { return tControlPacketType::CONNACK; }
 };
 
 class tPacketCONNECT : public hidden::tPacketBase<hidden::tContentCONNECT>
@@ -888,48 +911,37 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-/*
-class tPacketSUBSCRIBE : public hidden::tPacketBase<hidden::tVariableHeaderSUBSCRIBE, hidden::tPayloadSUBSCRIBE>
-{
-public:
-	tPacketSUBSCRIBE() = delete;
-	tPacketSUBSCRIBE(tUInt16 packetId, const tString& topicFilter, tQoS qos)
-		:tPacketBase(GetFixedHeader())
-	{
-		m_VariableHeader = hidden::tVariableHeaderSUBSCRIBE{};
-		m_VariableHeader->PacketId = packetId;
-
-		m_Payload = hidden::tPayloadSUBSCRIBE{};
-		m_Payload->TopicFilters.emplace_back(topicFilter, qos);
-	}
-
-	void AddTopicFilter(const tString& topicFilter, tQoS qos)
-	{
-		m_Payload->TopicFilters.emplace_back(topicFilter, qos);
-	}
-
-private:
-	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::SUBSCRIBE); }
-};
-
-class tPacketSUBACK : public hidden::tPacketBase<hidden::tVariableHeaderSUBACK, hidden::tPayloadSUBACK>
+class tPacketSUBACK : public hidden::tPacketBase<hidden::tContentSUBACK>
 {
 public:
 	tPacketSUBACK() = delete;
-	explicit tPacketSUBACK(tUInt16 packetId, tSubscribeReturnCode subscribeReturnCode)
-		:tPacketBase(GetFixedHeader())
+	tPacketSUBACK(tUInt16 packetId, const std::vector<tSubscribeReturnCode>& subscribeReturnCodes)
+		:tPacketBase(hidden::tContentSUBACK(packetId, subscribeReturnCodes))
 	{
-		m_VariableHeader = hidden::tVariableHeaderSUBACK{};
-		m_VariableHeader->PacketId = packetId;
-
-		m_Payload = hidden::tPayloadSUBACK{};
-		m_Payload->SubscribeReturnCode = subscribeReturnCode;
 	}
-
-private:
-	static hidden::tFixedHeader GetFixedHeader() { return hidden::MakeFixedHeader(tControlPacketType::SUBACK); }
+	tPacketSUBACK(const hidden::tPacketBase<hidden::tContentSUBACK>& val) :tPacketBase(val) {} // for std::future<..>, std::optional<..>
+	tPacketSUBACK(hidden::tPacketBase<hidden::tContentSUBACK>&& val) :tPacketBase(std::move(val)) {} // for std::future<..>, std::optional<..>
 };
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+using tSubscribeTopicFilter = hidden::tContentSUBSCRIBE::tTopicFilter;
+
+class tPacketSUBSCRIBE : public hidden::tPacketBase<hidden::tContentSUBSCRIBE>
+{
+public:
+	typedef typename tPacketSUBACK response_type;
+
+	tPacketSUBSCRIBE() = delete;
+	tPacketSUBSCRIBE(tUInt16 packetId, const std::vector<tSubscribeTopicFilter>& topicFilters)
+		:tPacketBase(hidden::tContentSUBSCRIBE(packetId, topicFilters))
+	{
+	}
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/*
 class tPacketUNSUBSCRIBE : public hidden::tPacketBase<hidden::tVariableHeaderUNSUBSCRIBE, hidden::tPayloadUNSUBSCRIBE>
 {
 public:

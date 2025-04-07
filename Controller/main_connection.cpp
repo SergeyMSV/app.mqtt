@@ -31,6 +31,16 @@ void TaskConnectionHandler(tcp::socket& socket)
 			std::cout << "SessPres: " << (int)Rsp->GetVariableHeader().ConnectAcknowledgeFlags.Field.SessionPresent << '\n';
 	}
 	/////////////////////////////////////////////////////////////
+	{
+		std::vector<mqtt::tSubscribeTopicFilter> Filters;
+		Filters.emplace_back("SensorA_will", mqtt::tQoS::AtMostOnceDelivery);
+		Filters.emplace_back("SensorA_DateTime", mqtt::tQoS::AtMostOnceDelivery);
+		mqtt::tPacketSUBSCRIBE Pack(0x1234, Filters); // [TBD] Packet Id should be set.
+		std::future<std::optional<mqtt::tPacketSUBSCRIBE::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<mqtt::tPacketSUBSCRIBE>(socket, Pack); });
+		utils::share::TaskTransactionWait(TaskFuture, 10000, "SUBACK");
+		TaskFuture.get(); // in case of exception - get it here
+	}
+	/////////////////////////////////////////////////////////////
 	constexpr std::uint16_t KeepAlive10ms = 100;// *100;
 	std::uint16_t PingCounter = KeepAlive10ms;
 	while(true)

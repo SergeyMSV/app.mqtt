@@ -198,7 +198,7 @@ std::string tFixedHeader::ToString(bool align) const
 {
 	tControlPacketType PacketType = static_cast<tControlPacketType>(Field.ControlPacketType);
 	std::string Str = mqtt::ToString(PacketType);
-	constexpr std::size_t LenghAligned = 11;
+	constexpr std::size_t LenghAligned = 11; // That is size of the longest packet name: "UNSUBSCRIBE".
 	if (align && Str.size() < LenghAligned)
 		Str.append(LenghAligned - Str.size(), ' ');
 	if (PacketType == tControlPacketType::PUBLISH)
@@ -709,9 +709,9 @@ tFixedHeader tContentPUBLISH::GetFixedHeader(bool dup, tQoS qos, bool retain) co
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// SUBSCRIBE: header & payload
-/*
-std::optional<tPayloadSUBSCRIBE::tTopicFilter> tPayloadSUBSCRIBE::tTopicFilter::Parse(tSpan& data)
+// SUBSCRIBE:
+
+std::optional<tContentSUBSCRIBE::tTopicFilter> tContentSUBSCRIBE::tTopicFilter::Parse(tSpan& data)
 {
 	auto StrExp = tString::Parse(data);
 	if (!StrExp.has_value() || data.empty())
@@ -726,60 +726,128 @@ std::optional<tPayloadSUBSCRIBE::tTopicFilter> tPayloadSUBSCRIBE::tTopicFilter::
 	return Parsed;
 }
 
-std::string tPayloadSUBSCRIBE::tTopicFilter::ToString() const
+std::string tContentSUBSCRIBE::tTopicFilter::ToString() const
 {
 	return std::string("Topic filter: ") + TopicFilter + ", QoS: " + mqtt::ToString(QoS);
 }
 
-std::vector<std::uint8_t> tPayloadSUBSCRIBE::tTopicFilter::ToVector() const
+std::vector<std::uint8_t> tContentSUBSCRIBE::tTopicFilter::ToVector() const
 {
 	std::vector<std::uint8_t> Data = TopicFilter.ToVector();
 	Data.push_back(static_cast<std::uint8_t>(QoS));
 	return Data;
 }
 
-std::optional<tPayloadSUBSCRIBE> tPayloadSUBSCRIBE::Parse(const tVariableHeaderSUBSCRIBE& variableHeader, tSpan& data)
+tContentSUBSCRIBE::tContentSUBSCRIBE(tUInt16 packetId, const payload_type& topicFilters)
+	:FixedHeader(GetFixedHeader())
 {
-	tPayloadSUBSCRIBE Payload{};
-	while (!data.empty())
+	VariableHeader.PacketId = packetId;
+	Payload = topicFilters; // [TBD] check move c_tor
+}
+
+std::optional<tContentSUBSCRIBE> tContentSUBSCRIBE::Parse(tSpan& data)
+{
+	std::optional<std::pair<tFixedHeader, std::size_t>> FixedHeaderOpt = tFixedHeader::Parse(data);
+	if (!FixedHeaderOpt.has_value())
+		return {};
+
+	tContentSUBSCRIBE Content{};
+	Content.FixedHeader = FixedHeaderOpt->first;
+
+	std::optional<tUInt16> PacketIdOpt = tUInt16::Parse(data);
+	if (!PacketIdOpt.has_value())
+		return {};
+	Content.VariableHeader.PacketId = *PacketIdOpt;
+
+	do
 	{
-		auto TopicFilterExp = tTopicFilter::Parse(data);
-		if (!TopicFilterExp.has_value())
+		auto TopicFilterOpt = tTopicFilter::Parse(data);
+		if (!TopicFilterOpt.has_value())
 			return {};
-		Payload.TopicFilters.push_back(*TopicFilterExp);
-	}
-	return Payload;
+		Content.Payload.push_back(*TopicFilterOpt);
+	} while (!data.empty());
+
+	return Content;
 }
 
-std::size_t tPayloadSUBSCRIBE::GetSize() const
+std::string tContentSUBSCRIBE::ToString() const
 {
-	std::size_t Size = 0;
-	std::ranges::for_each(TopicFilters, [&Size](const tTopicFilter& tf) { Size += tf.GetSize(); });
-	return Size;
-}
-
-std::string tPayloadSUBSCRIBE::ToString() const
-{
-	std::string Str;
-	for (auto& i : TopicFilters)
-	{
-		if (!Str.empty())
-			Str+= "; ";
-		Str += i.ToString();
-	}
+	std::string Str = FixedHeader.ToString(true);
+	Str += " Packet ID: " + std::to_string(VariableHeader.PacketId.Value);
+	std::ranges::for_each(Payload, [&Str](const tTopicFilter& item)
+		{
+			if (!Str.empty())
+				Str += "; ";
+			Str += item.ToString();
+		});
 	return Str;
 }
 
-std::vector<std::uint8_t> tPayloadSUBSCRIBE::ToVector() const
+std::vector<std::uint8_t> tContentSUBSCRIBE::ToVector() const
 {
 	std23::vector<std::uint8_t> Data;
-	std::ranges::for_each(TopicFilters, [&Data](const tTopicFilter& tf) { Data.append_range(tf.ToVector()); });
+	Data.append_range(VariableHeader.PacketId.ToVector());
+	std::ranges::for_each(Payload, [&Data](const tTopicFilter& tf) { Data.append_range(tf.ToVector()); });
+	Data.insert_range(Data.begin(), FixedHeader.ToVector(Data.size()));
 	return Data;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// SUBACK: header & payload
+// SUBACK
 
+tContentSUBACK::tContentSUBACK(tUInt16 packetId, std::vector<tSubscribeReturnCode> payload)
+	:FixedHeader(GetFixedHeader())
+{
+	VariableHeader.PacketId = packetId;
+	Payload = payload;
+}
+
+std::optional<tContentSUBACK> tContentSUBACK::Parse(tSpan& data)
+{
+	std::optional<std::pair<tFixedHeader, std::size_t>> FixedHeaderOpt = tFixedHeader::Parse(data);
+	if (!FixedHeaderOpt.has_value())
+		return {};
+
+	tContentSUBACK Content{};
+	Content.FixedHeader = FixedHeaderOpt->first;
+
+	std::optional<tUInt16> PacketIdOpt = tUInt16::Parse(data);
+	if (!PacketIdOpt.has_value())
+		return {};
+	Content.VariableHeader.PacketId = *PacketIdOpt;
+
+	if (data.empty())
+		return {};
+
+	for (const auto i : data)
+	{
+		Content.Payload.push_back(static_cast<tSubscribeReturnCode>(i)); // [TBD] check - if the value is correct
+		data.Skip(1);
+	}
+
+	return Content;
+}
+
+std::string tContentSUBACK::ToString() const
+{
+	std::string Str = FixedHeader.ToString(true);
+	Str += " Packet ID: " + std::to_string(VariableHeader.PacketId.Value);
+	Str += ", Return Codes:";
+	std::ranges::for_each(Payload, [&Str](tSubscribeReturnCode rc) { Str += " " + mqtt::ToString(rc); });
+	return Str;
+}
+
+std::vector<std::uint8_t> tContentSUBACK::ToVector() const
+{
+	std23::vector<std::uint8_t> Data;
+	Data.append_range(VariableHeader.PacketId.ToVector());
+	std::ranges::for_each(Payload, [&Data](tSubscribeReturnCode rc) { Data.push_back(static_cast<std::uint8_t>(rc)); });
+	Data.insert_range(Data.begin(), FixedHeader.ToVector(Data.size()));
+	return Data;
+}
+
+
+/*
 std::optional<tPayloadSUBACK> tPayloadSUBACK::Parse(const tVariableHeaderSUBACK& variableHeader, tSpan& data)
 {
 	if (data.size() != tPayloadSUBACK::GetSize())
