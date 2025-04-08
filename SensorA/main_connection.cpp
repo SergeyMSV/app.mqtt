@@ -21,6 +21,8 @@ void TaskConnectionHandler(tcp::socket& socket, const std::string sensorData)
 {
 	constexpr std::uint16_t KeepAlive = 10; // sec.
 
+	std::future<void> TaskFutureReceiving = std::async(std::launch::async, [&]() { return utils::share::TaskReceiveHandler(socket); });
+
 	{
 		//test::tMeasureDuration TCH("TCH-CONNECT");
 
@@ -92,4 +94,6 @@ void TaskConnectionHandler(tcp::socket& socket, const std::string sensorData)
 		g_Log.TestMessage("Disconnected!");
 	}
 	/////////////////////////////////////////////////////////////
+
+	TaskFutureReceiving.get();
 }

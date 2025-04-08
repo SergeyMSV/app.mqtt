@@ -189,7 +189,7 @@ std::optional<std::pair<tFixedHeader, std::size_t>> tFixedHeader::Parse(tSpan& d
 		return {};
 	data.Skip(1);
 	auto RLengtOpt = tRemainingLength::Parse(data);
-	if (!RLengtOpt.has_value() || *RLengtOpt != data.size())
+	if (!RLengtOpt.has_value() || *RLengtOpt > data.size())
 		return {};
 	return std::pair(FixedHeader, *RLengtOpt);
 }
@@ -923,6 +923,7 @@ std::optional<tControlPacketType> TestPacket(tSpan& data)
 	std::optional<std::pair<hidden::tFixedHeader, std::size_t>> FixedHeaderOpt = hidden::tFixedHeader::Parse(data);
 	if (!FixedHeaderOpt.has_value())
 		return {};
+	data.Skip(FixedHeaderOpt->second);
 	return FixedHeaderOpt->first.GetControlPacketType();
 }
 

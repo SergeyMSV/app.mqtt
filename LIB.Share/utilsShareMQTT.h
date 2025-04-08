@@ -2,7 +2,11 @@
 
 #include <libConfig.h>
 
+#include <condition_variable>
+#include <deque>
 #include <future>
+#include <map>
+#include <mutex>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -21,9 +25,62 @@ namespace utils
 namespace share
 {
 
+class tReceivedMessages
+{
+	std::map<mqtt::tControlPacketType, std::deque<std::vector<std::uint8_t>>> m_Queue;
+	std::mutex m_Mtx;
+
+	std::condition_variable m_CondVar;
+	std::mutex m_CondVarMtx;
+
+public:
+	//void Put(mqtt::tControlPacketType packType, const std::vector<std::uint8_t>& packData)
+	//{
+	//	std::lock_guard<std::mutex> Guard(m_Mtx);
+	//	m_Queue[packType].push_back(packData);
+	//}
+	void Put(mqtt::tControlPacketType packType, mqtt::tSpan packData)
+	{
+		std::lock_guard<std::mutex> Guard(m_Mtx);
+		m_Queue[packType].emplace_back(packData.begin(), packData.end());
+	}
+	std::vector<std::uint8_t> Get(mqtt::tControlPacketType packType)
+	{
+		std::lock_guard<std::mutex> Guard(m_Mtx);
+		if (m_Queue[packType].empty())
+			return {};
+		std::vector<std::uint8_t> PackData = std::move(m_Queue[packType].front()); // [TBD] check if it works.
+		m_Queue[packType].pop_front();
+		return PackData;
+	}
+	void Clear(mqtt::tControlPacketType packType)
+	{
+		std::lock_guard<std::mutex> Guard(m_Mtx);
+		if (m_Queue[packType].empty())
+			return;
+		m_Queue[packType].clear();
+	}
+
+	void Wait()
+	{
+		std::unique_lock<std::mutex> Lock(m_CondVarMtx);
+		m_CondVar.wait(Lock);
+	}
+	void Notify()
+	{
+		m_CondVar.notify_all();
+	}
+};
+
+extern tReceivedMessages g_ReceivedMessages;
+
 using tReceivePacketResult = std::pair<mqtt::tControlPacketType, mqtt::tSpan>;
 
-std::optional<tReceivePacketResult> ReceivePacket(tcp::socket& socket, std::vector<std::uint8_t>& buffer);
+std::vector<tReceivePacketResult> ReceivePacket(tcp::socket& socket, std::vector<std::uint8_t>& buffer);
+
+void TaskReceiveHandler(tcp::socket& socket);
+
+
 
 template <class tCmd>
 std::optional<typename tCmd::response_type> TaskTransactionHandler(tcp::socket& socket, const tCmd& packet)
@@ -36,21 +93,23 @@ std::optional<typename tCmd::response_type> TaskTransactionHandler(tcp::socket& 
 
 	auto PackVector = packet.ToVector();
 
+	g_ReceivedMessages.Clear(tCmd::response_type::GetControlPacketType());
+
 	socket.write_some(boost::asio::buffer(PackVector));
 
 	if (std::is_same_v<typename tCmd::response_type, mqtt::tPacketNOACK>)
 		return {};
 
-	std::vector<std::uint8_t> ReceiveBuffer(128);
+	g_ReceivedMessages.Wait();
 
-	auto ReceivedOpt = ReceivePacket(socket, ReceiveBuffer);
-	if (!ReceivedOpt.has_value())
+	std::vector<std::uint8_t> PacketRaw = g_ReceivedMessages.Get(tCmd::response_type::GetControlPacketType());
+	if (PacketRaw.empty())
 		THROW_RUNTIME_ERROR("No data has been received.");
 
-	auto Pack_parsed = tRsp::Parse(ReceivedOpt->second);
+	mqtt::tSpan PacketRawSpan(PacketRaw);
+	auto Pack_parsed = tRsp::Parse(PacketRawSpan);
 	if (!Pack_parsed.has_value())
 		THROW_RUNTIME_ERROR("Received response has not been parsed."); // Res.error() - put it into the message
-
 	g_Log.PacketReceived(Pack_parsed->ToString());
 
 	return std::optional<typename tCmd::response_type>(*Pack_parsed);//std::move(*Pack_parsed);
