@@ -51,7 +51,7 @@ static void TaskConnection_Publish(tcp::socket& socket, std::uint16_t& packetId,
 #ifdef MQTT_PUBLISH_QOS_1
 	{
 		using tPackPublish = mqtt::tPacketPUBLISH<mqtt::tQoS::AtLeastOnceDelivery>;
-		tPackPublish Pack(false, true, "SensorA_DateTime", ++packetId, std::vector<std::uint8_t>(sensorData.begin(), sensorData.end()));
+		tPackPublish Pack(true, true, "SensorA_DateTime", ++packetId, std::vector<std::uint8_t>(sensorData.begin(), sensorData.end()));
 		std::future<std::optional<tPackPublish::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<tPackPublish>(socket, Pack); });
 		utils::share::TaskTransactionWait(TaskFuture, 10000, "PUBACK");
 		auto PackRsp = TaskFuture.get(); // in case of exception - get it here
@@ -62,7 +62,7 @@ static void TaskConnection_Publish(tcp::socket& socket, std::uint16_t& packetId,
 #ifdef MQTT_PUBLISH_QOS_2
 	{
 		using tPackPublish = mqtt::tPacketPUBLISH<mqtt::tQoS::ExactlyOnceDelivery>;
-		tPackPublish Pack(false, true, "SensorA_DateTime", ++packetId, std::vector<std::uint8_t>(sensorData.begin(), sensorData.end()));
+		tPackPublish Pack(true, true, "SensorA_DateTime", ++packetId, std::vector<std::uint8_t>(sensorData.begin(), sensorData.end()));
 		std::future<std::optional<tPackPublish::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<tPackPublish>(socket, Pack); });
 		utils::share::TaskTransactionWait(TaskFuture, 10000, "PUBREC");
 		auto PackRsp = TaskFuture.get(); // in case of exception - get it here
