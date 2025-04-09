@@ -17,10 +17,10 @@
 //#define MQTT_PUBLISH_QOS_1
 #define MQTT_PUBLISH_QOS_2
 
-static bool TaskConnection_Connect(tcp::socket& socket)
+static bool TaskConnection_Connect(tcp::socket& socket, std::uint16_t keepAlive)
 {
-	constexpr std::uint16_t KeepAlive = 15; // sec. //[#] - TaskTransactionWait(..) should be taken into consideration
-	mqtt::tPacketCONNECT Pack(false, KeepAlive, "duper_star", mqtt::tQoS::AtLeastOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
+	mqtt::tPacketCONNECT Pack(false, keepAlive, "duper_star", mqtt::tQoS::AtMostOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
+	//mqtt::tPacketCONNECT Pack(false, keepAlive, "duper_star", mqtt::tQoS::AtLeastOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
 	std::future<std::optional<mqtt::tPacketCONNECT::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<mqtt::tPacketCONNECT>(socket, Pack); });
 	utils::share::TaskTransactionWait(TaskFuture, 10000, "CONNECT");
 	auto PackRsp = TaskFuture.get();
@@ -96,12 +96,16 @@ void TaskConnectionHandler(tcp::socket& socket, const std::string& sensorData)
 {
 	std::future<void> TaskFutureReceiving = std::async(std::launch::async, [&]() { return utils::share::TaskReceiveHandler(socket); });
 
+	constexpr std::uint16_t KeepAlive = 15; // sec. //[#] - TaskTransactionWait(..) should be taken into consideration
 	std::uint16_t PacketId = 0;
 
-	const bool SessionContinue = TaskConnection_Connect(socket);
-	if (!SessionContinue)
+	const bool SessionContinue = TaskConnection_Connect(socket, KeepAlive);
+	//if (!SessionContinue)
 		TaskConnection_Subscribe(socket, PacketId);
 	TaskConnection_Publish(socket, PacketId, sensorData);
+
+	//std::this_thread::sleep_for(std::chrono::seconds(10)); // [TBD] TEST
+
 	TaskConnection_Disconnect(socket);
 	g_Log.TestMessage("Disconnected!");
 
