@@ -30,7 +30,7 @@ static bool TaskConnection_Connect(tcp::socket& socket, std::uint16_t keepAlive)
 static void TaskConnection_Subscribe(tcp::socket& socket, std::uint16_t& packetId)
 {
 	std::vector<mqtt::tSubscribeTopicFilter> Filters;
-	Filters.emplace_back("SensorA_Settings", mqtt::tQoS::AtMostOnceDelivery);
+	Filters.emplace_back("SensorA_Settings", mqtt::tQoS::ExactlyOnceDelivery); // [#]
 	mqtt::tPacketSUBSCRIBE Pack(++packetId, Filters); // [TBD] Packet Id should be set.
 	std::future<std::optional<mqtt::tPacketSUBSCRIBE::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<mqtt::tPacketSUBSCRIBE>(socket, Pack); });
 	utils::share::TaskTransactionWait(TaskFuture, 10000, "SUBACK");
