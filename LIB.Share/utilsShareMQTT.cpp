@@ -42,9 +42,9 @@ void TaskReceiveHandler(tcp::socket& socket)
 			g_Log.WriteHex(true, utils::log::tColor::Cyan, "RCV", std::vector<std::uint8_t>(PacketSpan.begin(), PacketSpan.end()));
 
 			g_ReceivedMessages.Put(ControlPacketType, PacketSpan);
-		}
 
-		g_ReceivedMessages.Notify();
+			g_ReceivedMessages.Notify(ControlPacketType);
+		}		
 	}
 }
 

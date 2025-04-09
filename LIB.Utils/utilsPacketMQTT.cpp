@@ -319,7 +319,7 @@ bool tContentCONNECT::tPayload::operator==(const tPayload& val) const
 }
 
 tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
-	:FixedHeader(GetFixedHeader())
+	:FixedHeader(MakeFixedHeader(GetControlPacketType()))
 {
 	VariableHeader.ProtocolName = DefaultProtocolName;
 	VariableHeader.ProtocolLevel = DefaultProtocolLevel;
@@ -531,7 +531,7 @@ tContentCONNECT& tContentCONNECT::operator=(tContentCONNECT&& val) noexcept
 // CONNACK
 
 tContentCONNACK::tContentCONNACK(bool sessionPresent, tConnectReturnCode connectRetCode)
-	:FixedHeader(GetFixedHeader())
+	:FixedHeader(MakeFixedHeader(GetControlPacketType()))
 {
 	VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent = sessionPresent;
 	VariableHeader.ConnectReturnCode = connectRetCode;
@@ -705,7 +705,7 @@ tFixedHeader tContentPUBLISH::GetFixedHeader(bool dup, tQoS qos, bool retain) co
 	Flags.Field.QoS = static_cast<std::uint8_t>(qos);
 	Flags.Field.RETAIN = retain ? 1 : 0;
 
-	return MakeFixedHeader(tControlPacketType::PUBLISH, Flags.Value);
+	return MakeFixedHeader(GetControlPacketType(), Flags.Value);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -739,7 +739,7 @@ std::vector<std::uint8_t> tContentSUBSCRIBE::tTopicFilter::ToVector() const
 }
 
 tContentSUBSCRIBE::tContentSUBSCRIBE(tUInt16 packetId, const payload_type& topicFilters)
-	:FixedHeader(GetFixedHeader())
+	:FixedHeader(MakeFixedHeader(GetControlPacketType()))
 {
 	VariableHeader.PacketId = packetId;
 	Payload = topicFilters; // [TBD] check move c_tor
@@ -796,7 +796,7 @@ std::vector<std::uint8_t> tContentSUBSCRIBE::ToVector() const
 // SUBACK
 
 tContentSUBACK::tContentSUBACK(tUInt16 packetId, std::vector<tSubscribeReturnCode> payload)
-	:FixedHeader(GetFixedHeader())
+	:FixedHeader(MakeFixedHeader(GetControlPacketType()))
 {
 	VariableHeader.PacketId = packetId;
 	Payload = payload;

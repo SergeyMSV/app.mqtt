@@ -15,7 +15,7 @@
 
 using boost::asio::ip::tcp;
 
-void TaskConnectionHandler(tcp::socket& socket, const std::string sensorData);
+void TaskConnectionHandler(tcp::socket& socket, const std::string& sensorData);
 
 int main()
 {

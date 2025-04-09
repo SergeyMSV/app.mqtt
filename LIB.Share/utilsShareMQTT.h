@@ -32,6 +32,7 @@ class tReceivedMessages
 
 	std::condition_variable m_CondVar;
 	std::mutex m_CondVarMtx;
+	mqtt::tControlPacketType m_CondVarControlPacketType = mqtt::tControlPacketType::_None;
 
 public:
 	//void Put(mqtt::tControlPacketType packType, const std::vector<std::uint8_t>& packData)
@@ -61,14 +62,18 @@ public:
 		m_Queue[packType].clear();
 	}
 
-	void Wait()
+	void Wait(mqtt::tControlPacketType packType)
 	{
+		m_CondVarControlPacketType = packType;
 		std::unique_lock<std::mutex> Lock(m_CondVarMtx);
 		m_CondVar.wait(Lock);
 	}
-	void Notify()
+	void Notify(mqtt::tControlPacketType packType)
 	{
-		m_CondVar.notify_all();
+		if (m_CondVarControlPacketType != packType)
+			return;
+		m_CondVar.notify_one();
+		m_CondVarControlPacketType = mqtt::tControlPacketType::_None;
 	}
 };
 
@@ -93,6 +98,8 @@ std::optional<typename tCmd::response_type> TaskTransactionHandler(tcp::socket& 
 
 	auto PackVector = packet.ToVector();
 
+	g_Log.WriteHex(true, utils::log::tColor::LightMagenta, "SND", PackVector);
+
 	g_ReceivedMessages.Clear(tCmd::response_type::GetControlPacketType());
 
 	socket.write_some(boost::asio::buffer(PackVector));
@@ -100,7 +107,7 @@ std::optional<typename tCmd::response_type> TaskTransactionHandler(tcp::socket& 
 	if (std::is_same_v<typename tCmd::response_type, mqtt::tPacketNOACK>)
 		return {};
 
-	g_ReceivedMessages.Wait();
+	g_ReceivedMessages.Wait(tCmd::response_type::GetControlPacketType());
 
 	std::vector<std::uint8_t> PacketRaw = g_ReceivedMessages.Get(tCmd::response_type::GetControlPacketType());
 	if (PacketRaw.empty())
