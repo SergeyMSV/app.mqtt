@@ -177,48 +177,103 @@ bool operator==(const std::optional<T>& val1, const std::optional<T>& val2)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-union tFixedHeader
+class tFixedHeaderBase
 {
-	struct
+protected:
+	union tData
 	{
-		std::uint8_t Flags : 4;
-		std::uint8_t ControlPacketType : 4;
-	}Field;
-	std::uint8_t Value = 0;
+		struct
+		{
+			std::uint8_t Flags : 4;
+			std::uint8_t ControlPacketType : 4;
+		}Field;
+		struct
+		{
+			// Normally if a publisher publishes a message to a topic, and no one is subscribed to that topic the message is simply discarded by the broker.
+			// However the publisher can tell the broker to keep the last message on that topic by setting the retained message flag.
+			std::uint8_t RETAIN : 1;
+			std::uint8_t QoS : 2;
+			std::uint8_t DUP : 1;
+			std::uint8_t : 4;
+		}FieldPUBLISH;
+		std::uint8_t Value = 0;
+	}Data;
 
-	tFixedHeader() = default;
-	tFixedHeader(std::uint8_t val) :Value(val) {} // not explicit
+public:
+	tFixedHeaderBase() = default;
+	explicit tFixedHeaderBase(tControlPacketType controlPacketType)
+	{
+		Data.Field.ControlPacketType = static_cast<std::uint8_t>(controlPacketType);
+		if (controlPacketType == tControlPacketType::PUBREL ||
+			controlPacketType == tControlPacketType::SUBSCRIBE ||
+			controlPacketType == tControlPacketType::UNSUBSCRIBE)
+		{
+			Data.Field.Flags = 0x02;
+		}
+	}
+	tFixedHeaderBase(std::uint8_t val) // not explicits
+	{
+		Data.Value = val;
+	}
 
-	static std::optional<std::pair<tFixedHeader, std::size_t>> Parse(tSpan& data);
+	static std::optional<std::pair<tFixedHeaderBase, std::size_t>> Parse(tSpan& data);
 
-	tControlPacketType GetControlPacketType() const { return static_cast<tControlPacketType>(Field.ControlPacketType); }
+	tControlPacketType GetControlPacketType() const { return static_cast<tControlPacketType>(Data.Field.ControlPacketType); }
+
+	std::uint8_t GetValue() const { return Data.Value; }
 
 	std::string ToString(bool align = false) const;
 
 	std::vector<std::uint8_t> ToVector(std::size_t dataSize) const;
 
-	bool operator==(const tFixedHeader& val) const { return Value == val.Value; }
+	bool operator==(const tFixedHeaderBase& val) const { return Data.Value == val.Data.Value; } // [TBD] check if it's needed
 };
 
-constexpr tFixedHeader MakeFixedHeader(tControlPacketType type, std::uint8_t flags)
+template<tControlPacketType ControlPacketType>
+class tFixedHeaderBaseT : public tFixedHeaderBase
 {
-	tFixedHeader Header{};
-	Header.Field.ControlPacketType = static_cast<std::uint8_t>(type);
-	Header.Field.Flags = flags;
-	return Header;
-}
-
-constexpr tFixedHeader MakeFixedHeader(tControlPacketType type)
-{
-	std::uint8_t Flags = 0;
-	if (type == tControlPacketType::PUBREL ||
-		type == tControlPacketType::SUBSCRIBE ||
-		type == tControlPacketType::UNSUBSCRIBE)
+public:
+	tFixedHeaderBaseT() :tFixedHeaderBase(ControlPacketType) {}
+	tFixedHeaderBaseT(const tFixedHeaderBase& val) // for std::future<..>, std::optional<..>
 	{
-		Flags = 0x02;
+		Data.Value = val.GetValue();
 	}
-	return MakeFixedHeader(type, Flags);
-}
+
+	static tControlPacketType GetControlPacketType() { return ControlPacketType; }
+};
+
+template<>
+class tFixedHeaderBaseT<tControlPacketType::PUBLISH> : public tFixedHeaderBase
+{
+public:
+	tFixedHeaderBaseT() :tFixedHeaderBase(tControlPacketType::PUBLISH) {}
+	tFixedHeaderBaseT(bool dup, tQoS qos, bool retain)
+		:tFixedHeaderBase(tControlPacketType::PUBLISH)
+	{
+		Data.FieldPUBLISH.DUP = dup ? 1 : 0;
+		Data.FieldPUBLISH.QoS = static_cast<std::uint8_t>(qos);
+		Data.FieldPUBLISH.RETAIN = retain ? 1 : 0;
+	}
+	tFixedHeaderBaseT(const tFixedHeaderBase& val) // for std::future<..>, std::optional<..>
+	{
+		Data.Value = val.GetValue();
+	} 
+
+	static tControlPacketType GetControlPacketType() { return tControlPacketType::PUBLISH; }
+
+	bool GetDUP() const { return Data.FieldPUBLISH.DUP; }
+	tQoS GetQoS() const { return static_cast<tQoS>(Data.FieldPUBLISH.QoS); }
+	bool GetRetain() const { return Data.FieldPUBLISH.RETAIN; }
+
+	std::string ToString(bool align = false) const
+	{
+		std::string Str = tFixedHeaderBase::ToString(align);
+		Str += " Retain: " + mqtt::ToString(GetRetain());
+		Str += ", QoS: " + mqtt::ToString(GetQoS());
+		Str += ", DUP: " + mqtt::ToString(GetDUP());
+		return Str;
+	}
+};
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -289,7 +344,7 @@ public:
 		return Parse(DataSpan);
 	}
 
-	static tControlPacketType GetControlPacketType() { return TCont::GetControlPacketType(); }
+	static tControlPacketType GetControlPacketType() { return TCont::fixed_header_type::GetControlPacketType(); }
 
 	TCont::fixed_header_type GetFixedHeader() const { return m_Content.FixedHeader; }
 	TCont::variable_header_type GetVariableHeader() const { return m_Content.VariableHeader; }
@@ -308,13 +363,15 @@ public:
 template<tControlPacketType ControlPacketType>
 struct tContentEMPTY
 {
+	using tFixedHeader = tFixedHeaderBaseT<ControlPacketType>;
+
 	tFixedHeader FixedHeader{};
 
 	typedef typename tFixedHeader fixed_header_type;
 	typedef typename void variable_header_type;
 	typedef typename void payload_type;
 
-	tContentEMPTY() :FixedHeader(MakeFixedHeader(GetControlPacketType())) {}
+	tContentEMPTY() = default;
 
 	static std::optional<tContentEMPTY> Parse(tSpan& data)
 	{
@@ -325,8 +382,6 @@ struct tContentEMPTY
 		Content.FixedHeader = FixedHeaderOpt->first;
 		return Content;
 	}
-
-	static tControlPacketType GetControlPacketType() { return ControlPacketType; }
 
 	std::string ToString() const { return FixedHeader.ToString(true); }
 
@@ -340,6 +395,8 @@ struct tContentEMPTY
 
 struct tContentCONNECT
 {
+	using tFixedHeader = tFixedHeaderBaseT<tControlPacketType::CONNECT>;
+
 	tFixedHeader FixedHeader{};
 	struct tVariableHeader
 	{
@@ -429,8 +486,6 @@ struct tContentCONNECT
 
 	static std::optional<tContentCONNECT> Parse(tSpan& data);
 
-	static tControlPacketType GetControlPacketType() { return tControlPacketType::CONNECT; }
-
 	void SetClientId(std::string val);
 	void SetWill(tQoS qos, bool retain, const std::string& topic, const std::string& message);
 	void SetUser(const std::string& name, const std::string& password);
@@ -450,6 +505,8 @@ struct tContentCONNECT
 
 struct tContentCONNACK
 {
+	using tFixedHeader = tFixedHeaderBaseT<tControlPacketType::CONNACK>;
+
 	tFixedHeader FixedHeader{};
 	struct tVariableHeader
 	{
@@ -479,8 +536,6 @@ struct tContentCONNACK
 
 	static std::optional<tContentCONNACK> Parse(tSpan& data);
 
-	static tControlPacketType GetControlPacketType() { return tControlPacketType::CONNACK; }
-
 	std::string ToString() const;
 
 	std::vector<std::uint8_t> ToVector() const;
@@ -493,6 +548,8 @@ struct tContentCONNACK
 
 struct tContentPUBLISH
 {
+	using tFixedHeader = tFixedHeaderBaseT<tControlPacketType::PUBLISH>;
+
 	union tFixedHeaderPUBLISHFlags
 	{
 		struct
@@ -538,8 +595,6 @@ struct tContentPUBLISH
 
 	static std::optional<tContentPUBLISH> Parse(tSpan& data);
 
-	static tControlPacketType GetControlPacketType() { return tControlPacketType::PUBLISH; }
-
 	std::string ToString() const;
 
 	std::vector<std::uint8_t> ToVector() const;
@@ -551,9 +606,7 @@ struct tContentPUBLISH
 
 private:
 	// 809 The Packet Identifier field is only present in PUBLISH Packets where the QoS level is 1 or 2.
-	static bool IsPacketIdPresent(std::uint8_t flags);
-
-	tFixedHeader GetFixedHeader(bool dup, tQoS qos, bool retain) const; // [TBD] get rid of it
+	static bool IsPacketIdPresent(tQoS qos) { return static_cast<tQoS>(qos) != tQoS::AtMostOnceDelivery; }
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -562,6 +615,8 @@ private:
 template<tControlPacketType ControlPacketType>
 struct tContentPUB
 {
+	using tFixedHeader = tFixedHeaderBaseT<ControlPacketType>;
+
 	tFixedHeader FixedHeader{};
 	struct tVariableHeader
 	{
@@ -576,7 +631,6 @@ struct tContentPUB
 
 	tContentPUB() = default;
 	explicit tContentPUB(tUInt16 packetId)
-		:FixedHeader(MakeFixedHeader(GetControlPacketType()))
 	{
 		VariableHeader.PacketId = packetId;
 	}
@@ -597,8 +651,6 @@ struct tContentPUB
 
 		return Content;
 	}
-
-	static tControlPacketType GetControlPacketType() { return ControlPacketType; }
 
 	std::string ToString() const
 	{
@@ -632,6 +684,8 @@ using tContentPUBCOMP = tContentPUB<tControlPacketType::PUBCOMP>;
 
 struct tContentSUBSCRIBE
 {
+	using tFixedHeader = tFixedHeaderBaseT<tControlPacketType::SUBSCRIBE>;
+
 	tFixedHeader FixedHeader{};
 	struct tVariableHeader
 	{
@@ -664,8 +718,6 @@ struct tContentSUBSCRIBE
 
 	static std::optional<tContentSUBSCRIBE> Parse(tSpan& data);
 
-	static tControlPacketType GetControlPacketType() { return tControlPacketType::SUBSCRIBE; }
-
 	std::string ToString() const;
 
 	std::vector<std::uint8_t> ToVector() const;
@@ -678,6 +730,8 @@ struct tContentSUBSCRIBE
 
 struct tContentSUBACK
 {
+	using tFixedHeader = tFixedHeaderBaseT<tControlPacketType::SUBACK>;
+
 	tFixedHeader FixedHeader{};
 	struct tVariableHeader
 	{
@@ -696,8 +750,6 @@ struct tContentSUBACK
 	tContentSUBACK(tUInt16 packetId, std::vector<tSubscribeReturnCode> payload);
 
 	static std::optional<tContentSUBACK> Parse(tSpan& data);
-
-	static tControlPacketType GetControlPacketType() { return tControlPacketType::SUBACK; }
 
 	std::string ToString() const;
 
@@ -875,6 +927,8 @@ public:
 	{
 	}
 };
+
+using tPacketPUBLISH_Parse = tPacketPUBLISH<tQoS::AtMostOnceDelivery>;
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 

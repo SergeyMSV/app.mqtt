@@ -179,12 +179,12 @@ namespace hidden
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::pair<tFixedHeader, std::size_t>> tFixedHeader::Parse(tSpan& data)
+std::optional<std::pair<tFixedHeaderBase, std::size_t>> tFixedHeaderBase::Parse(tSpan& data)
 {
 	if (data.empty())
 		return {};
-	tFixedHeader FixedHeader = data[0];
-	const auto ControlPacketType = static_cast<tControlPacketType>(FixedHeader.Field.ControlPacketType);
+	tFixedHeaderBase FixedHeader = data[0];
+	const auto ControlPacketType = FixedHeader.GetControlPacketType();
 	if (ControlPacketType < tControlPacketType::CONNECT || ControlPacketType > tControlPacketType::DISCONNECT)
 		return {};
 	data.Skip(1);
@@ -194,31 +194,22 @@ std::optional<std::pair<tFixedHeader, std::size_t>> tFixedHeader::Parse(tSpan& d
 	return std::pair(FixedHeader, *RLengtOpt);
 }
 
-std::string tFixedHeader::ToString(bool align) const
+std::string tFixedHeaderBase::ToString(bool align) const
 {
-	tControlPacketType PacketType = static_cast<tControlPacketType>(Field.ControlPacketType);
-	std::string Str = mqtt::ToString(PacketType);
+	std::string Str = mqtt::ToString(GetControlPacketType());
 	constexpr std::size_t LenghAligned = 11; // That is size of the longest packet name: "UNSUBSCRIBE".
 	if (align && Str.size() < LenghAligned)
 		Str.append(LenghAligned - Str.size(), ' ');
-	if (PacketType == tControlPacketType::PUBLISH)
-	{
-		tContentPUBLISH::tFixedHeaderPUBLISHFlags Flags{};
-		Flags.Value = Field.Flags;
-		Str += " Retain: " + mqtt::ToString(static_cast<bool>(Flags.Field.RETAIN));
-		Str += ", QoS: " + mqtt::ToString(static_cast<tQoS>(Flags.Field.QoS));
-		Str += ", DUP: " + mqtt::ToString(static_cast<bool>(Flags.Field.DUP));
-	}
 	return Str;
 }
 
-std::vector<std::uint8_t> tFixedHeader::ToVector(std::size_t dataSize) const
+std::vector<std::uint8_t> tFixedHeaderBase::ToVector(std::size_t dataSize) const
 {
-	std23::vector<std::uint8_t> Data = tRemainingLength::ToVector(static_cast<std::uint32_t>(dataSize));
-	if (Data.empty())
+	std23::vector<std::uint8_t> Vect = tRemainingLength::ToVector(static_cast<std::uint32_t>(dataSize));
+	if (Vect.empty())
 		return {};
-	Data.insert(Data.begin(), Value);
-	return Data;
+	Vect.insert(Vect.begin(), Data.Value);
+	return Vect;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -319,7 +310,6 @@ bool tContentCONNECT::tPayload::operator==(const tPayload& val) const
 }
 
 tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
-	:FixedHeader(MakeFixedHeader(GetControlPacketType()))
 {
 	VariableHeader.ProtocolName = DefaultProtocolName;
 	VariableHeader.ProtocolLevel = DefaultProtocolLevel;
@@ -531,7 +521,6 @@ tContentCONNECT& tContentCONNECT::operator=(tContentCONNECT&& val) noexcept
 // CONNACK
 
 tContentCONNACK::tContentCONNACK(bool sessionPresent, tConnectReturnCode connectRetCode)
-	:FixedHeader(MakeFixedHeader(GetControlPacketType()))
 {
 	VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent = sessionPresent;
 	VariableHeader.ConnectReturnCode = connectRetCode;
@@ -595,27 +584,27 @@ tContentPUBLISH::tVariableHeader& tContentPUBLISH::tVariableHeader::operator=(tV
 }
 
 tContentPUBLISH::tContentPUBLISH(bool dup, bool retain, const std::string& topicName)
-	:FixedHeader(GetFixedHeader(dup, tQoS::AtMostOnceDelivery, retain))
+	:FixedHeader(dup, tQoS::AtMostOnceDelivery, retain)
 {
 	VariableHeader.TopicName = topicName;
 }
 
 tContentPUBLISH::tContentPUBLISH(bool dup, bool retain, const std::string& topicName, const std::vector<std::uint8_t>& payload)
-	:FixedHeader(GetFixedHeader(dup, tQoS::AtMostOnceDelivery, retain))
+	:FixedHeader(dup, tQoS::AtMostOnceDelivery, retain)
 {
 	VariableHeader.TopicName = topicName;
 	Payload = payload;
 }
 
 tContentPUBLISH::tContentPUBLISH(bool dup, bool retain, const std::string& topicName, tQoS qos, tUInt16 packetId)
-	:FixedHeader(GetFixedHeader(dup, qos, retain))
+	:FixedHeader(dup, qos, retain)
 {
 	VariableHeader.TopicName = topicName;
 	VariableHeader.PacketId = packetId;
 }
 
 tContentPUBLISH::tContentPUBLISH(bool dup, bool retain, const std::string& topicName, tQoS qos, tUInt16 packetId, const std::vector<std::uint8_t>& payload)
-	:FixedHeader(GetFixedHeader(dup, qos, retain))
+	:FixedHeader(dup, qos, retain)
 {
 	VariableHeader.TopicName = topicName;
 	VariableHeader.PacketId = packetId;
@@ -643,7 +632,7 @@ std::optional<tContentPUBLISH> tContentPUBLISH::Parse(tSpan& data)
 		return {};
 	Content.VariableHeader.TopicName = *StrOpt;
 
-	if (IsPacketIdPresent(Content.FixedHeader.Field.Flags))
+	if (IsPacketIdPresent(Content.FixedHeader.GetQoS()))
 	{
 		std::optional<tUInt16> PacketIdOpt = tUInt16::Parse(data);
 		if (!PacketIdOpt.has_value())
@@ -690,24 +679,6 @@ tContentPUBLISH& tContentPUBLISH::operator=(tContentPUBLISH&& val) noexcept
 	return *this;
 }
 
-bool tContentPUBLISH::IsPacketIdPresent(std::uint8_t flags)
-{
-	tFixedHeaderPUBLISHFlags Flags;
-	Flags.Value = flags;
-	return static_cast<tQoS>(Flags.Field.QoS) == tQoS::AtLeastOnceDelivery || static_cast<tQoS>(Flags.Field.QoS) == tQoS::ExactlyOnceDelivery;
-}
-
-tFixedHeader tContentPUBLISH::GetFixedHeader(bool dup, tQoS qos, bool retain) const
-{
-	tFixedHeaderPUBLISHFlags Flags;
-
-	Flags.Field.DUP = dup ? 1 : 0;
-	Flags.Field.QoS = static_cast<std::uint8_t>(qos);
-	Flags.Field.RETAIN = retain ? 1 : 0;
-
-	return MakeFixedHeader(GetControlPacketType(), Flags.Value);
-}
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // SUBSCRIBE:
 
@@ -739,7 +710,6 @@ std::vector<std::uint8_t> tContentSUBSCRIBE::tTopicFilter::ToVector() const
 }
 
 tContentSUBSCRIBE::tContentSUBSCRIBE(tUInt16 packetId, const payload_type& topicFilters)
-	:FixedHeader(MakeFixedHeader(GetControlPacketType()))
 {
 	VariableHeader.PacketId = packetId;
 	Payload = topicFilters; // [TBD] check move c_tor
@@ -796,7 +766,6 @@ std::vector<std::uint8_t> tContentSUBSCRIBE::ToVector() const
 // SUBACK
 
 tContentSUBACK::tContentSUBACK(tUInt16 packetId, std::vector<tSubscribeReturnCode> payload)
-	:FixedHeader(MakeFixedHeader(GetControlPacketType()))
 {
 	VariableHeader.PacketId = packetId;
 	Payload = payload;
@@ -833,7 +802,7 @@ std::string tContentSUBACK::ToString() const
 	std::string Str = FixedHeader.ToString(true);
 	Str += " Packet ID: " + std::to_string(VariableHeader.PacketId.Value);
 	Str += ", Return Codes:";
-	std::ranges::for_each(Payload, [&Str](tSubscribeReturnCode rc) { Str += " " + mqtt::ToString(rc); });
+	std::ranges::for_each(Payload, [&Str](tSubscribeReturnCode rc) { Str += ", " + mqtt::ToString(rc); });
 	return Str;
 }
 
@@ -920,7 +889,7 @@ std::optional<tControlPacketType> TestPacket(tSpan& data)
 {
 	if (data.size() < hidden::PacketSizeMin)
 		return {};
-	std::optional<std::pair<hidden::tFixedHeader, std::size_t>> FixedHeaderOpt = hidden::tFixedHeader::Parse(data);
+	std::optional<std::pair<hidden::tFixedHeaderBase, std::size_t>> FixedHeaderOpt = hidden::tFixedHeaderBase::Parse(data);
 	if (!FixedHeaderOpt.has_value())
 		return {};
 	data.Skip(FixedHeaderOpt->second);
