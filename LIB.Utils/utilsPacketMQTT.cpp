@@ -179,41 +179,6 @@ namespace hidden
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::optional<std::pair<tFixedHeaderBase, std::size_t>> tFixedHeaderBase::Parse(tSpan& data)
-{
-	if (data.empty())
-		return {};
-	tFixedHeaderBase FixedHeader = data[0];
-	const auto ControlPacketType = FixedHeader.GetControlPacketType();
-	if (ControlPacketType < tControlPacketType::CONNECT || ControlPacketType > tControlPacketType::DISCONNECT)
-		return {};
-	data.Skip(1);
-	auto RLengtOpt = tRemainingLength::Parse(data);
-	if (!RLengtOpt.has_value() || *RLengtOpt > data.size())
-		return {};
-	return std::pair(FixedHeader, *RLengtOpt);
-}
-
-std::string tFixedHeaderBase::ToString(bool align) const
-{
-	std::string Str = mqtt::ToString(GetControlPacketType());
-	constexpr std::size_t LenghAligned = 11; // That is size of the longest packet name: "UNSUBSCRIBE".
-	if (align && Str.size() < LenghAligned)
-		Str.append(LenghAligned - Str.size(), ' ');
-	return Str;
-}
-
-std::vector<std::uint8_t> tFixedHeaderBase::ToVector(std::size_t dataSize) const
-{
-	std23::vector<std::uint8_t> Vect = tRemainingLength::ToVector(static_cast<std::uint32_t>(dataSize));
-	if (Vect.empty())
-		return {};
-	Vect.insert(Vect.begin(), Data.Value);
-	return Vect;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
 std::optional<std::uint32_t> tRemainingLength::Parse(tSpan& data)
 {
 	if (data.empty())
@@ -261,6 +226,41 @@ std::vector<std::uint8_t> tRemainingLength::ToVector(std::uint32_t val)
 		return {};
 
 	return Data;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+//std::optional<std::pair<tFixedHeaderBase, std::size_t>> tFixedHeaderBase::Parse(tSpan& data)
+//{
+//	if (data.empty())
+//		return {};
+//	tFixedHeaderBase FixedHeader = data[0];
+//	const auto ControlPacketType = FixedHeader.GetControlPacketType();
+//	if (ControlPacketType < tControlPacketType::CONNECT || ControlPacketType > tControlPacketType::DISCONNECT)
+//		return {};
+//	data.Skip(1);
+//	auto RLengtOpt = tRemainingLength::Parse(data);
+//	if (!RLengtOpt.has_value() || *RLengtOpt > data.size())
+//		return {};
+//	return std::pair(FixedHeader, *RLengtOpt);
+//}
+
+std::string tFixedHeaderBase::ToString(bool align) const
+{
+	std::string Str = mqtt::ToString(GetControlPacketType());
+	constexpr std::size_t LenghAligned = 11; // That is size of the longest packet name: "UNSUBSCRIBE".
+	if (align && Str.size() < LenghAligned)
+		Str.append(LenghAligned - Str.size(), ' ');
+	return Str;
+}
+
+std::vector<std::uint8_t> tFixedHeaderBase::ToVector(std::size_t dataSize) const
+{
+	std23::vector<std::uint8_t> Vect = tRemainingLength::ToVector(static_cast<std::uint32_t>(dataSize));
+	if (Vect.empty())
+		return {};
+	Vect.insert(Vect.begin(), Data.Value);
+	return Vect;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -889,7 +889,7 @@ std::optional<tControlPacketType> TestPacket(tSpan& data)
 {
 	if (data.size() < hidden::PacketSizeMin)
 		return {};
-	std::optional<std::pair<hidden::tFixedHeaderBase, std::size_t>> FixedHeaderOpt = hidden::tFixedHeaderBase::Parse(data);
+	std::optional<std::pair<hidden::tFixedHeaderBase, std::size_t>> FixedHeaderOpt = hidden::tFixedHeaderBase::Parse<hidden::tFixedHeaderBase>(data);
 	if (!FixedHeaderOpt.has_value())
 		return {};
 	data.Skip(FixedHeaderOpt->second);

@@ -177,6 +177,29 @@ bool operator==(const std::optional<T>& val1, const std::optional<T>& val2)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+class tRemainingLength
+{
+	static constexpr std::size_t m_SizeMax = 4;
+
+	union tLengthPart
+	{
+		struct
+		{
+			std::uint8_t Num : 7;
+			std::uint8_t Continuation : 1;
+		}Field;
+		std::uint8_t Value = 0;
+	};
+
+	tRemainingLength() = delete;
+
+public:
+	static std::optional<std::uint32_t> Parse(tSpan& data);
+	static std::vector<std::uint8_t> ToVector(std::uint32_t val);
+};
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 class tFixedHeaderBase
 {
 protected:
@@ -211,22 +234,34 @@ public:
 			Data.Field.Flags = 0x02;
 		}
 	}
-	tFixedHeaderBase(std::uint8_t val) // not explicits
+	explicit tFixedHeaderBase(std::uint8_t val)
 	{
 		Data.Value = val;
 	}
 
-	static std::optional<std::pair<tFixedHeaderBase, std::size_t>> Parse(tSpan& data);
+	template<typename T>
+	static std::optional<std::pair<T, std::size_t>> Parse(tSpan& data)
+	{
+		if (data.empty())
+			return {};
+		T FixedHeader(data[0]);
+		const auto ControlPacketType = FixedHeader.GetControlPacketType();
+		if (ControlPacketType < tControlPacketType::CONNECT || ControlPacketType > tControlPacketType::DISCONNECT)
+			return {};
+		data.Skip(1);
+		auto RLengtOpt = tRemainingLength::Parse(data);
+		if (!RLengtOpt.has_value() || *RLengtOpt > data.size())
+			return {};
+		return std::pair(FixedHeader, *RLengtOpt);
+	}
 
 	tControlPacketType GetControlPacketType() const { return static_cast<tControlPacketType>(Data.Field.ControlPacketType); }
-
-	std::uint8_t GetValue() const { return Data.Value; }
 
 	std::string ToString(bool align = false) const;
 
 	std::vector<std::uint8_t> ToVector(std::size_t dataSize) const;
 
-	bool operator==(const tFixedHeaderBase& val) const { return Data.Value == val.Data.Value; } // [TBD] check if it's needed
+	bool operator==(const tFixedHeaderBase& val) const { return Data.Value == val.Data.Value; }
 };
 
 template<tControlPacketType ControlPacketType>
@@ -234,9 +269,14 @@ class tFixedHeaderBaseT : public tFixedHeaderBase
 {
 public:
 	tFixedHeaderBaseT() :tFixedHeaderBase(ControlPacketType) {}
-	tFixedHeaderBaseT(const tFixedHeaderBase& val) // for std::future<..>, std::optional<..>
+	explicit tFixedHeaderBaseT(std::uint8_t val)
 	{
-		Data.Value = val.GetValue();
+		Data.Value = val;
+	}
+
+	static std::optional<std::pair<tFixedHeaderBaseT, std::size_t>> Parse(tSpan& data)
+	{
+		return tFixedHeaderBase::Parse<tFixedHeaderBaseT>(data);
 	}
 
 	static tControlPacketType GetControlPacketType() { return ControlPacketType; }
@@ -254,10 +294,15 @@ public:
 		Data.FieldPUBLISH.QoS = static_cast<std::uint8_t>(qos);
 		Data.FieldPUBLISH.RETAIN = retain ? 1 : 0;
 	}
-	tFixedHeaderBaseT(const tFixedHeaderBase& val) // for std::future<..>, std::optional<..>
+	explicit tFixedHeaderBaseT(std::uint8_t val)
 	{
-		Data.Value = val.GetValue();
-	} 
+		Data.Value = val;
+	}
+
+	static std::optional<std::pair<tFixedHeaderBaseT, std::size_t>> Parse(tSpan& data)
+	{
+		return tFixedHeaderBase::Parse<tFixedHeaderBaseT>(data);
+	}
 
 	static tControlPacketType GetControlPacketType() { return tControlPacketType::PUBLISH; }
 
@@ -273,29 +318,6 @@ public:
 		Str += ", DUP: " + mqtt::ToString(GetDUP());
 		return Str;
 	}
-};
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-class tRemainingLength
-{
-	static constexpr std::size_t m_SizeMax = 4;
-
-	union tLengthPart
-	{
-		struct
-		{
-			std::uint8_t Num : 7;
-			std::uint8_t Continuation : 1;
-		}Field;
-		std::uint8_t Value = 0;
-	};
-
-	tRemainingLength() = delete;
-
-public:
-	static std::optional<std::uint32_t> Parse(tSpan& data);
-	static std::vector<std::uint8_t> ToVector(std::uint32_t val);
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -811,8 +833,8 @@ public:
 		:tPacketBase(hidden::tContentCONNACK(sessionPresent, connectRetCode))
 	{
 	}
-	tPacketCONNACK(const hidden::tPacketBase<hidden::tContentCONNACK>& val) :tPacketBase(val) {} // for std::future<..>
-	tPacketCONNACK(hidden::tPacketBase<hidden::tContentCONNACK>&& val) :tPacketBase(std::move(val)) {} // for std::future<..>
+	tPacketCONNACK(const hidden::tPacketBase<hidden::tContentCONNACK>& val) :tPacketBase(val) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
+	tPacketCONNACK(hidden::tPacketBase<hidden::tContentCONNACK>&& val) :tPacketBase(std::move(val)) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
 };
 
 class tPacketCONNECT : public hidden::tPacketBase<hidden::tContentCONNECT>
@@ -850,8 +872,8 @@ public:
 		:tPacketBase(hidden::tContentPUBACK(packetId))
 	{
 	}
-	tPacketPUBACK(const hidden::tPacketBase<hidden::tContentPUBACK>& val) :tPacketBase(val) {} // for std::future<..>, std::optional<..>
-	tPacketPUBACK(hidden::tPacketBase<hidden::tContentPUBACK>&& val) :tPacketBase(std::move(val)) {} // for std::future<..>, std::optional<..>
+	tPacketPUBACK(const hidden::tPacketBase<hidden::tContentPUBACK>& val) :tPacketBase(val) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
+	tPacketPUBACK(hidden::tPacketBase<hidden::tContentPUBACK>&& val) :tPacketBase(std::move(val)) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -866,8 +888,8 @@ public:
 		:tPacketBase(hidden::tContentPUBREC(packetId))
 	{
 	}
-	tPacketPUBREC(const hidden::tPacketBase<hidden::tContentPUBREC>& val) :tPacketBase(val) {} // for std::future<..>, std::optional<..>
-	tPacketPUBREC(hidden::tPacketBase<hidden::tContentPUBREC>&& val) :tPacketBase(std::move(val)) {} // for std::future<..>, std::optional<..>
+	tPacketPUBREC(const hidden::tPacketBase<hidden::tContentPUBREC>& val) :tPacketBase(val) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
+	tPacketPUBREC(hidden::tPacketBase<hidden::tContentPUBREC>&& val) :tPacketBase(std::move(val)) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -942,8 +964,8 @@ public:
 		:tPacketBase(hidden::tContentPUBCOMP(packetId))
 	{
 	}
-	tPacketPUBCOMP(const hidden::tPacketBase<hidden::tContentPUBCOMP>& val) :tPacketBase(val) {} // for std::future<..>, std::optional<..>
-	tPacketPUBCOMP(hidden::tPacketBase<hidden::tContentPUBCOMP>&& val) :tPacketBase(std::move(val)) {} // for std::future<..>, std::optional<..>
+	tPacketPUBCOMP(const hidden::tPacketBase<hidden::tContentPUBCOMP>& val) :tPacketBase(val) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
+	tPacketPUBCOMP(hidden::tPacketBase<hidden::tContentPUBCOMP>&& val) :tPacketBase(std::move(val)) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -972,8 +994,8 @@ public:
 		:tPacketBase(hidden::tContentSUBACK(packetId, subscribeReturnCodes))
 	{
 	}
-	tPacketSUBACK(const hidden::tPacketBase<hidden::tContentSUBACK>& val) :tPacketBase(val) {} // for std::future<..>, std::optional<..>
-	tPacketSUBACK(hidden::tPacketBase<hidden::tContentSUBACK>&& val) :tPacketBase(std::move(val)) {} // for std::future<..>, std::optional<..>
+	tPacketSUBACK(const hidden::tPacketBase<hidden::tContentSUBACK>& val) :tPacketBase(val) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
+	tPacketSUBACK(hidden::tPacketBase<hidden::tContentSUBACK>&& val) :tPacketBase(std::move(val)) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1038,8 +1060,8 @@ class tPacketPINGRESP : public hidden::tPacketBase<hidden::tContentEMPTY<tContro
 {
 public:
 	tPacketPINGRESP() :tPacketBase(hidden::tContentEMPTY<tControlPacketType::PINGRESP>()) {}
-	tPacketPINGRESP(const hidden::tPacketBase<hidden::tContentEMPTY<tControlPacketType::PINGRESP>>& val) :tPacketBase(val) {} // for std::future<..>, std::optional<..>
-	tPacketPINGRESP(hidden::tPacketBase<hidden::tContentEMPTY<tControlPacketType::PINGRESP>>&& val) :tPacketBase(std::move(val)) {} // for std::future<..>, std::optional<..>
+	tPacketPINGRESP(const hidden::tPacketBase<hidden::tContentEMPTY<tControlPacketType::PINGRESP>>& val) :tPacketBase(val) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
+	tPacketPINGRESP(hidden::tPacketBase<hidden::tContentEMPTY<tControlPacketType::PINGRESP>>&& val) :tPacketBase(std::move(val)) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
 };
 
 class tPacketPINGREQ : public hidden::tPacketBase<hidden::tContentEMPTY<tControlPacketType::PINGREQ>>
