@@ -78,10 +78,22 @@ enum class tConnectReturnCode : std::uint8_t
 
 enum class tSubscribeReturnCode : std::uint8_t
 {
-	SuccessMaximumQoS_AtMostOnceDelivery = tQoS::AtMostOnceDelivery,
-	SuccessMaximumQoS_AtLeastOnceDelivery = tQoS::AtLeastOnceDelivery,
-	SuccessMaximumQoS_ExactlyOnceDelivery = tQoS::ExactlyOnceDelivery,
+	SuccessMaximumQoS_AtMostOnceDelivery, // = tQoS::AtMostOnceDelivery,
+	SuccessMaximumQoS_AtLeastOnceDelivery, // = tQoS::AtLeastOnceDelivery,
+	SuccessMaximumQoS_ExactlyOnceDelivery, // = tQoS::ExactlyOnceDelivery,
 	Failure = 0x80,
+};
+
+enum class tSessionState
+{
+	New,
+	Present,
+};
+
+enum class tSessionStateRequest
+{
+	Continue, // open a "present" session if possible (tSessionState::Present)
+	Clean, // open a "new" session (tSessionState::New)
 };
 
 template<typename T> std::string ToString(T val);
@@ -389,9 +401,9 @@ struct tContentEMPTY
 
 	tFixedHeader FixedHeader{};
 
-	typedef typename tFixedHeader fixed_header_type;
-	typedef typename void variable_header_type;
-	typedef typename void payload_type;
+	using fixed_header_type = tFixedHeader;
+	using variable_header_type = void;
+	using payload_type = void;
 
 	tContentEMPTY() = default;
 
@@ -494,15 +506,15 @@ struct tContentCONNECT
 		bool operator==(const tPayload& val) const;
 	}Payload;
 
-	typedef typename tFixedHeader fixed_header_type;
-	typedef typename tVariableHeader variable_header_type;
-	typedef typename tPayload payload_type;
+	using fixed_header_type = tFixedHeader;
+	using variable_header_type = tVariableHeader;
+	using payload_type = tPayload;
 
 	tContentCONNECT() = default;
-	tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password);
-	tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage);
-	tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId);
-	tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, const std::string& userName, const std::string& password);
+	tContentCONNECT(tSessionStateRequest sessStateReq, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password);
+	tContentCONNECT(tSessionStateRequest sessStateReq, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage);
+	tContentCONNECT(tSessionStateRequest sessStateReq, std::uint16_t keepAlive, const std::string& clientId);
+	tContentCONNECT(tSessionStateRequest sessStateReq, std::uint16_t keepAlive, const std::string& clientId, const std::string& userName, const std::string& password);
 	tContentCONNECT(const tContentCONNECT&) = default;
 	tContentCONNECT(tContentCONNECT&& val) noexcept;
 
@@ -549,12 +561,12 @@ struct tContentCONNACK
 		}
 	}VariableHeader;
 
-	typedef typename tFixedHeader fixed_header_type;
-	typedef typename tVariableHeader variable_header_type;
-	typedef typename void payload_type;
+	using fixed_header_type = tFixedHeader;
+	using variable_header_type = tVariableHeader;
+	using payload_type = void;
 
 	tContentCONNACK() = default;
-	tContentCONNACK(bool sessionPresent, tConnectReturnCode connectRetCode);
+	tContentCONNACK(tSessionState sessionState, tConnectReturnCode connectRetCode);
 
 	static std::optional<tContentCONNACK> Parse(tSpan& data);
 
@@ -603,9 +615,9 @@ struct tContentPUBLISH
 	}VariableHeader;
 	std::vector<std::uint8_t> Payload; // The content and format of the data is application specific.
 
-	typedef typename tFixedHeader fixed_header_type;
-	typedef typename tVariableHeader variable_header_type;
-	typedef typename std::vector<std::uint8_t> payload_type;
+	using fixed_header_type = tFixedHeader;
+	using variable_header_type = tVariableHeader;
+	using payload_type = std::vector<std::uint8_t>;
 
 	tContentPUBLISH() = default;
 	tContentPUBLISH(bool dup, bool retain, const std::string& topicName);
@@ -647,9 +659,9 @@ struct tContentPUB
 		bool operator==(const tVariableHeader& val) const = default;
 	}VariableHeader;
 
-	typedef typename tFixedHeader fixed_header_type;
-	typedef typename tVariableHeader variable_header_type;
-	typedef typename void payload_type;
+	using fixed_header_type = tFixedHeader;
+	using variable_header_type = tVariableHeader;
+	using payload_type = void;
 
 	tContentPUB() = default;
 	explicit tContentPUB(tUInt16 packetId)
@@ -731,9 +743,9 @@ struct tContentSUBSCRIBE
 	};
 	std::vector<tTopicFilter> Payload;
 
-	typedef typename tFixedHeader fixed_header_type;
-	typedef typename tVariableHeader variable_header_type;
-	typedef typename std::vector<tTopicFilter> payload_type;
+	using fixed_header_type = tFixedHeader;
+	using variable_header_type = tVariableHeader;
+	using payload_type = std::vector<tTopicFilter>;
 
 	tContentSUBSCRIBE() = default;
 	tContentSUBSCRIBE(tUInt16 packetId, const payload_type& topicFilters);
@@ -764,9 +776,9 @@ struct tContentSUBACK
 
 	std::vector<tSubscribeReturnCode> Payload;
 
-	typedef typename tFixedHeader fixed_header_type;
-	typedef typename tVariableHeader variable_header_type;
-	typedef typename std::vector<tSubscribeReturnCode> payload_type;
+	using fixed_header_type = tFixedHeader;
+	using variable_header_type = tVariableHeader;
+	using payload_type = std::vector<tSubscribeReturnCode>;
 
 	tContentSUBACK() = default;
 	tContentSUBACK(tUInt16 packetId, std::vector<tSubscribeReturnCode> payload);
@@ -829,8 +841,8 @@ class tPacketCONNACK : public hidden::tPacketBase<hidden::tContentCONNACK>
 {
 public:
 	tPacketCONNACK() = delete;
-	tPacketCONNACK(bool sessionPresent, tConnectReturnCode connectRetCode)
-		:tPacketBase(hidden::tContentCONNACK(sessionPresent, connectRetCode))
+	tPacketCONNACK(tSessionState sessionState, tConnectReturnCode connectRetCode)
+		:tPacketBase(hidden::tContentCONNACK(sessionState, connectRetCode))
 	{
 	}
 	tPacketCONNACK(const hidden::tPacketBase<hidden::tContentCONNACK>& val) :tPacketBase(val) {} // Parse(..) in the base class returns an instance of the base class and it shall be transform to an instance of derived one (for std::future<..>, std::optional<..>).
@@ -840,23 +852,23 @@ public:
 class tPacketCONNECT : public hidden::tPacketBase<hidden::tContentCONNECT>
 {
 public:
-	typedef typename tPacketCONNACK response_type;
+	using response_type = tPacketCONNACK;
 
 	tPacketCONNECT() = delete;
-	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
-		:tPacketBase(hidden::tContentCONNECT(cleanSession, keepAlive, clientId, willQos, willRetain, willTopic, willMessage, userName, password))
+	tPacketCONNECT(tSessionStateRequest sessionStateRequest, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
+		:tPacketBase(hidden::tContentCONNECT(sessionStateRequest, keepAlive, clientId, willQos, willRetain, willTopic, willMessage, userName, password))
 	{
 	}
-	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage)
-		:tPacketBase(hidden::tContentCONNECT(cleanSession, keepAlive, clientId, willQos, willRetain, willTopic, willMessage))
+	tPacketCONNECT(tSessionStateRequest sessionStateRequest, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage)
+		:tPacketBase(hidden::tContentCONNECT(sessionStateRequest, keepAlive, clientId, willQos, willRetain, willTopic, willMessage))
 	{
 	}
-	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, const std::string& userName, const std::string& password)
-		:tPacketBase(hidden::tContentCONNECT(cleanSession, keepAlive, clientId, userName, password))
+	tPacketCONNECT(tSessionStateRequest sessionStateRequest, std::uint16_t keepAlive, const std::string& clientId, const std::string& userName, const std::string& password)
+		:tPacketBase(hidden::tContentCONNECT(sessionStateRequest, keepAlive, clientId, userName, password))
 	{
 	}
-	tPacketCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId)
-		:tPacketBase(hidden::tContentCONNECT(cleanSession, keepAlive, clientId))
+	tPacketCONNECT(tSessionStateRequest sessionStateRequest, std::uint16_t keepAlive, const std::string& clientId)
+		:tPacketBase(hidden::tContentCONNECT(sessionStateRequest, keepAlive, clientId))
 	{
 	}
 };
@@ -903,7 +915,7 @@ template<>
 class tPacketPUBLISH<tQoS::AtMostOnceDelivery> : public hidden::tPacketBase<hidden::tContentPUBLISH>
 {
 public:
-	typedef typename tPacketNOACK response_type;
+	using response_type = tPacketNOACK;
 
 	tPacketPUBLISH() = delete;
 	tPacketPUBLISH(bool dup, bool retain, const std::string& topicName)
@@ -920,7 +932,7 @@ template<>
 class tPacketPUBLISH<tQoS::AtLeastOnceDelivery> : public hidden::tPacketBase<hidden::tContentPUBLISH>
 {
 public:
-	typedef typename tPacketPUBACK response_type;
+	using response_type = tPacketPUBACK;
 
 	tPacketPUBLISH() = delete;
 	tPacketPUBLISH(bool dup, bool retain, const std::string& topicName, tUInt16 packetId)
@@ -937,7 +949,7 @@ template<>
 class tPacketPUBLISH<tQoS::ExactlyOnceDelivery> : public hidden::tPacketBase<hidden::tContentPUBLISH>
 {
 public:
-	typedef typename tPacketPUBREC response_type;
+	using response_type = tPacketPUBREC;
 
 	tPacketPUBLISH() = delete;
 	tPacketPUBLISH(bool dup, bool retain, const std::string& topicName, tUInt16 packetId)
@@ -975,7 +987,7 @@ public:
 class tPacketPUBREL : public hidden::tPacketBase<hidden::tContentPUBREL>
 {
 public:
-	typedef typename tPacketPUBCOMP response_type;
+	using response_type = tPacketPUBCOMP;
 
 	tPacketPUBREL() = delete;
 	explicit tPacketPUBREL(tUInt16 packetId)
@@ -1005,7 +1017,7 @@ using tSubscribeTopicFilter = hidden::tContentSUBSCRIBE::tTopicFilter;
 class tPacketSUBSCRIBE : public hidden::tPacketBase<hidden::tContentSUBSCRIBE>
 {
 public:
-	typedef typename tPacketSUBACK response_type;
+	using response_type = tPacketSUBACK;
 
 	tPacketSUBSCRIBE() = delete;
 	tPacketSUBSCRIBE(tUInt16 packetId, const std::vector<tSubscribeTopicFilter>& topicFilters)
@@ -1067,7 +1079,7 @@ public:
 class tPacketPINGREQ : public hidden::tPacketBase<hidden::tContentEMPTY<tControlPacketType::PINGREQ>>
 {
 public:
-	typedef typename tPacketPINGRESP response_type;
+	using response_type = tPacketPINGRESP;
 
 	tPacketPINGREQ() :tPacketBase(hidden::tContentEMPTY<tControlPacketType::PINGREQ>()) {}
 };
@@ -1075,7 +1087,7 @@ public:
 class tPacketDISCONNECT : public hidden::tPacketBase<hidden::tContentEMPTY<tControlPacketType::DISCONNECT>>
 {
 public:
-	typedef typename tPacketNOACK response_type;
+	using response_type = tPacketNOACK;
 
 	tPacketDISCONNECT() :tPacketBase(hidden::tContentEMPTY<tControlPacketType::DISCONNECT>()) {}
 };

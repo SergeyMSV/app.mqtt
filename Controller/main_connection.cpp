@@ -19,7 +19,7 @@
 
 static bool TaskConnection_Connect(tcp::socket& socket, std::uint16_t keepAlive)
 {
-	mqtt::tPacketCONNECT Pack(false, keepAlive, "duper_star"); // 1883 // [!] it differs from SensorA
+	mqtt::tPacketCONNECT Pack(mqtt::tSessionStateRequest::Continue, keepAlive, "duper_star"); // 1883 // [!] it differs from SensorA
 	std::future<std::optional<mqtt::tPacketCONNECT::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<mqtt::tPacketCONNECT>(socket, Pack); });
 	utils::share::TaskTransactionWait(TaskFuture, 10000, "CONNECT");
 	auto PackRsp = TaskFuture.get();

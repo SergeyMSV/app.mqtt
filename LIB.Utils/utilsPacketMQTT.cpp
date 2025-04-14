@@ -1,6 +1,7 @@
 #include "utilsPacketMQTT.h"
 
 #include <algorithm>
+#include <variant>
 
 namespace utils
 {
@@ -35,19 +36,19 @@ const std::vector<std::pair<tControlPacketType, std::string>> LogControlPacketTy
 
 const std::vector<std::pair<tQoS, std::string>> LogQoS =
 {
-	{tQoS::AtMostOnceDelivery, "At most once delivery"},
-	{tQoS::AtLeastOnceDelivery, "At least once delivery"},
-	{tQoS::ExactlyOnceDelivery, "Exactly once delivery"},
+	{tQoS::AtMostOnceDelivery, "at most once delivery"},
+	{tQoS::AtLeastOnceDelivery, "at least once delivery"},
+	{tQoS::ExactlyOnceDelivery, "exactly once delivery"},
 };
 
 const std::vector<std::pair<tConnectReturnCode, std::string>> LogConnectReturnCode =
 {
-	{tConnectReturnCode::ConnectionAccepted, "Connection Accepted"},
-	{tConnectReturnCode::ConnectionRefused_UnacceptableProtocolVersion, "Connection Refused, unacceptable protocol version"},
-	{tConnectReturnCode::ConnectionRefused_IdentifierRejected, "Connection Refused, identifier rejected"},
-	{tConnectReturnCode::ConnectionRefused_ServerUnavailable, "Connection Refused, Server unavailable"},
-	{tConnectReturnCode::ConnectionRefused_BadUserNameOrPassword, "Connection Refused, bad user name or password"},
-	{tConnectReturnCode::ConnectionRefused_NotAuthorized, "Connection Refused, not authorized"},
+	{tConnectReturnCode::ConnectionAccepted, "connection accepted"},
+	{tConnectReturnCode::ConnectionRefused_UnacceptableProtocolVersion, "connection refused, unacceptable protocol version"},
+	{tConnectReturnCode::ConnectionRefused_IdentifierRejected, "connection cefused, identifier rejected"},
+	{tConnectReturnCode::ConnectionRefused_ServerUnavailable, "connection refused, Server unavailable"},
+	{tConnectReturnCode::ConnectionRefused_BadUserNameOrPassword, "connection refused, bad user name or password"},
+	{tConnectReturnCode::ConnectionRefused_NotAuthorized, "connection refused, not authorized"},
 };
 
 const std::vector<std::pair<tSubscribeReturnCode, std::string>> LogSubscribeReturnCode =
@@ -55,7 +56,19 @@ const std::vector<std::pair<tSubscribeReturnCode, std::string>> LogSubscribeRetu
 	{tSubscribeReturnCode::SuccessMaximumQoS_AtMostOnceDelivery, "SuccessMaximumQoS=AtMostOnceDelivery"},
 	{tSubscribeReturnCode::SuccessMaximumQoS_AtLeastOnceDelivery, "SuccessMaximumQoS=AtLeastOnceDelivery"},
 	{tSubscribeReturnCode::SuccessMaximumQoS_ExactlyOnceDelivery, "SuccessMaximumQoS=ExactlyOnceDelivery"},
-	{tSubscribeReturnCode::Failure, "Failure"},
+	{tSubscribeReturnCode::Failure, "failure"},
+};
+
+const std::vector<std::pair<tSessionState, std::string>> LogSessionState =
+{
+	{tSessionState::New, "new"},
+	{tSessionState::Present, "present"},
+};
+
+const std::vector<std::pair<tSessionStateRequest, std::string>> LogSessionStateRequest =
+{
+	{tSessionStateRequest::Continue, "continue"},
+	{tSessionStateRequest::Clean, "clean"},
 };
 
 template<typename T>
@@ -79,39 +92,33 @@ std::string GetString(const std::vector<std::pair<tControlPacketType, std::strin
 template<typename T>
 std::string ToString(T val)
 {
-	if constexpr (std::is_same_v<T, tQoS>)
-		return GetString(LogQoS, val);
+	struct tToString
+	{
+		std::string operator()(bool val) const { return val ? "true" : "false"; }
+		std::string operator()(tConnectReturnCode val) const { return GetString(LogConnectReturnCode, val); }
+		std::string operator()(tControlPacketType val) const { return GetString(LogControlPacketType, val); }
+		std::string operator()(tQoS val) const { return GetString(LogQoS, val); }
+		std::string operator()(tSessionState val) const { return GetString(LogSessionState, val); }
+		std::string operator()(tSessionStateRequest val) const { return GetString(LogSessionStateRequest, val); }
+		std::string operator()(tSubscribeReturnCode val) const { return GetString(LogSubscribeReturnCode, val); }
+		std::string operator()(...) const { return "ERROR"; }
+	};
 
-	if constexpr (std::is_same_v<T, tConnectReturnCode>)
-		return GetString(LogConnectReturnCode, val);
-
-	if constexpr (std::is_same_v<T, tSubscribeReturnCode>)
-		return GetString(LogSubscribeReturnCode, val);
-
-	if constexpr (std::is_same_v<T, bool>)
-		return val ? "true" : "false";
-
-	return "ERROR";
+	return tToString{}(val);
 }
 
-template<>
-std::string ToString(tControlPacketType val)
+std::string ToString(const std::string& label, const std::optional<std::variant<std::string, tUInt16>>& val)
 {
-	return GetString(LogControlPacketType, val);
-}
+	if (!val.has_value())
+		return {};
 
-std::string ToString(const std::string& label, const std::optional<std::string>& val)
-{
-	if (val.has_value())
-		return label + *val;
-	return {};
-}
+	struct tToString
+	{
+		std::string operator()(const std::string& val) const { return val; }
+		std::string operator()(tUInt16 val) const { return std::to_string(val.Value); }
+	};
 
-std::string ToString(const std::string& label, const std::optional<tUInt16>& val)
-{
-	if (val.has_value())
-		return label + std::to_string(val->Value);
-	return {};
+	return label + std::visit(tToString{}, *val);
 }
 
 std::vector<std::uint8_t> ToVector(const std::optional<tString>& val)
@@ -207,7 +214,7 @@ std::optional<std::uint32_t> tRemainingLength::Parse(tSpan& data)
 std::vector<std::uint8_t> tRemainingLength::ToVector(std::uint32_t val)
 {
 	std::vector<std::uint8_t> Data;
-	for (int i = 0; i < m_SizeMax; ++i)
+	for (std::size_t i = 0; i < m_SizeMax; ++i)
 	{
 		tLengthPart Part{};
 		Part.Field.Num = val;
@@ -229,21 +236,6 @@ std::vector<std::uint8_t> tRemainingLength::ToVector(std::uint32_t val)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-//std::optional<std::pair<tFixedHeaderBase, std::size_t>> tFixedHeaderBase::Parse(tSpan& data)
-//{
-//	if (data.empty())
-//		return {};
-//	tFixedHeaderBase FixedHeader = data[0];
-//	const auto ControlPacketType = FixedHeader.GetControlPacketType();
-//	if (ControlPacketType < tControlPacketType::CONNECT || ControlPacketType > tControlPacketType::DISCONNECT)
-//		return {};
-//	data.Skip(1);
-//	auto RLengtOpt = tRemainingLength::Parse(data);
-//	if (!RLengtOpt.has_value() || *RLengtOpt > data.size())
-//		return {};
-//	return std::pair(FixedHeader, *RLengtOpt);
-//}
 
 std::string tFixedHeaderBase::ToString(bool align) const
 {
@@ -309,11 +301,11 @@ bool tContentCONNECT::tPayload::operator==(const tPayload& val) const
 	return ClientId == val.ClientId && WillTopic == val.WillTopic && WillMessage == val.WillMessage && UserName == val.UserName && Password == val.Password;
 }
 
-tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
+tContentCONNECT::tContentCONNECT(tSessionStateRequest sessStateReq, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage, const std::string& userName, const std::string& password)
 {
 	VariableHeader.ProtocolName = DefaultProtocolName;
 	VariableHeader.ProtocolLevel = DefaultProtocolLevel;
-	VariableHeader.ConnectFlags.Field.CleanSession = cleanSession ? 1 : 0;
+	VariableHeader.ConnectFlags.Field.CleanSession = static_cast<std::uint8_t>(sessStateReq);
 	VariableHeader.KeepAlive.Value = keepAlive;
 
 	SetClientId(clientId);
@@ -321,18 +313,18 @@ tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, con
 	SetUser(userName, password);
 }
 
-tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage)
-	:tContentCONNECT(cleanSession, keepAlive, clientId, willQos, willRetain, willTopic, willMessage, "", "")
+tContentCONNECT::tContentCONNECT(tSessionStateRequest sessStateReq, std::uint16_t keepAlive, const std::string& clientId, tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage)
+	:tContentCONNECT(sessStateReq, keepAlive, clientId, willQos, willRetain, willTopic, willMessage, "", "")
 {
 }
 
-tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId)
-	:tContentCONNECT(cleanSession, keepAlive, clientId, tQoS::AtMostOnceDelivery, false, "", "", "", "")
+tContentCONNECT::tContentCONNECT(tSessionStateRequest sessStateReq, std::uint16_t keepAlive, const std::string& clientId)
+	:tContentCONNECT(sessStateReq, keepAlive, clientId, tQoS::AtMostOnceDelivery, false, "", "", "", "")
 {
 }
 
-tContentCONNECT::tContentCONNECT(bool cleanSession, std::uint16_t keepAlive, const std::string& clientId, const std::string& userName, const std::string& password)
-	:tContentCONNECT(cleanSession, keepAlive, clientId, tQoS::AtMostOnceDelivery, false, "", "", userName, password)
+tContentCONNECT::tContentCONNECT(tSessionStateRequest sessStateReq, std::uint16_t keepAlive, const std::string& clientId, const std::string& userName, const std::string& password)
+	:tContentCONNECT(sessStateReq, keepAlive, clientId, tQoS::AtMostOnceDelivery, false, "", "", userName, password)
 {
 }
 
@@ -474,7 +466,7 @@ std::string tContentCONNECT::ToString() const
 	Str += " Protocol";
 	Str += " name: " + VariableHeader.ProtocolName;
 	Str += ", level: " + std::to_string(VariableHeader.ProtocolLevel);
-	Str += "; Clean session: " + mqtt::ToString(static_cast<bool>(VariableHeader.ConnectFlags.Field.CleanSession));
+	Str += "; Session state request: " + mqtt::ToString(static_cast<tSessionStateRequest>(VariableHeader.ConnectFlags.Field.CleanSession));
 	Str += "; Will";
 	Str += " flag: " + mqtt::ToString(static_cast<bool>(VariableHeader.ConnectFlags.Field.WillFlag));
 	Str += ", QoS: " + mqtt::ToString(static_cast<tQoS>(VariableHeader.ConnectFlags.Field.WillQoS));
@@ -520,9 +512,9 @@ tContentCONNECT& tContentCONNECT::operator=(tContentCONNECT&& val) noexcept
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CONNACK
 
-tContentCONNACK::tContentCONNACK(bool sessionPresent, tConnectReturnCode connectRetCode)
+tContentCONNACK::tContentCONNACK(tSessionState sessionState, tConnectReturnCode connectRetCode)
 {
-	VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent = sessionPresent;
+	VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent = static_cast<std::uint8_t>(sessionState);
 	VariableHeader.ConnectReturnCode = connectRetCode;
 }
 
@@ -545,15 +537,12 @@ std::optional<tContentCONNACK> tContentCONNACK::Parse(tSpan& data)
 std::string tContentCONNACK::ToString() const
 {
 	std::string Str = FixedHeader.ToString(true);
-	Str += " ReturnCode: ";
+	Str += " Return code: ";
 	Str += mqtt::ToString(VariableHeader.ConnectReturnCode);
-
 	if (VariableHeader.ConnectReturnCode != tConnectReturnCode::ConnectionAccepted)
 		return Str;
-
-	Str += "; Session Present: ";
-	Str += VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent ?
-		mqtt::ToString(VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent, "Continued") : mqtt::ToString(VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent, "Clean");
+	Str += "; Session state: ";
+	Str += mqtt::ToString(static_cast<tSessionState>(VariableHeader.ConnectAcknowledgeFlags.Field.SessionPresent));
 	return Str;
 }
 
@@ -570,7 +559,7 @@ std::vector<std::uint8_t> tContentCONNACK::ToVector() const
 // PUBLISH
 
 tContentPUBLISH::tVariableHeader::tVariableHeader(tVariableHeader&& val) noexcept
-	:PacketId(val.PacketId), TopicName(std::move(val.TopicName))
+	:TopicName(std::move(val.TopicName)), PacketId(val.PacketId)
 {
 }
 
@@ -801,8 +790,9 @@ std::string tContentSUBACK::ToString() const
 {
 	std::string Str = FixedHeader.ToString(true);
 	Str += " Packet ID: " + std::to_string(VariableHeader.PacketId.Value);
-	Str += ", Return Codes:";
-	std::ranges::for_each(Payload, [&Str](tSubscribeReturnCode rc) { Str += ", " + mqtt::ToString(rc); });
+	Str += ", Return codes:";
+	std::ranges::for_each(Payload, [&Str](tSubscribeReturnCode rc) { Str += " " + mqtt::ToString(rc) + ","; });
+	Str.resize(Str.size() - 1);
 	return Str;
 }
 
@@ -815,33 +805,9 @@ std::vector<std::uint8_t> tContentSUBACK::ToVector() const
 	return Data;
 }
 
-
-/*
-std::optional<tPayloadSUBACK> tPayloadSUBACK::Parse(const tVariableHeaderSUBACK& variableHeader, tSpan& data)
-{
-	if (data.size() != tPayloadSUBACK::GetSize())
-		return {};
-	tPayloadSUBACK Payload{};
-	Payload.SubscribeReturnCode = static_cast<tSubscribeReturnCode>(data[0]);
-	data.Skip(1);
-	return Payload;
-}
-
-std::string tPayloadSUBACK::ToString() const
-{
-	return mqtt::ToString(SubscribeReturnCode);
-}
-
-std::vector<std::uint8_t> tPayloadSUBACK::ToVector() const
-{
-	std::vector<std::uint8_t> Data;
-	Data.push_back(static_cast<std::uint8_t>(SubscribeReturnCode));
-	return Data;
-}
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // UNSUBSCRIBE: header & payload
-
+/*
 std::optional<tPayloadUNSUBSCRIBE> tPayloadUNSUBSCRIBE::Parse(const tVariableHeaderUNSUBSCRIBE& variableHeader, tSpan& data)
 {
 	tPayloadUNSUBSCRIBE Payload{};

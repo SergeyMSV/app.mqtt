@@ -19,7 +19,7 @@
 
 static bool TaskConnection_Connect(tcp::socket& socket, std::uint16_t keepAlive)
 {
-	mqtt::tPacketCONNECT Pack(false, keepAlive, "duper_star", mqtt::tQoS::AtMostOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
+	mqtt::tPacketCONNECT Pack(mqtt::tSessionStateRequest::Continue, keepAlive, "duper_star", mqtt::tQoS::AtMostOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
 	//mqtt::tPacketCONNECT Pack(false, keepAlive, "duper_star", mqtt::tQoS::AtLeastOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
 	std::future<std::optional<mqtt::tPacketCONNECT::response_type>> TaskFuture = std::async(std::launch::async, [&]() { return utils::share::TaskTransactionHandler<mqtt::tPacketCONNECT>(socket, Pack); });
 	utils::share::TaskTransactionWait(TaskFuture, 10000, "CONNECT");
