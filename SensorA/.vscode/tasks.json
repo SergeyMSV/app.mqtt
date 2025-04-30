@@ -1,0 +1,79 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "shell",
+      "label": "C/C++: cpp build active file ARM",
+      "command": "/usr/bin/arm-linux-gnueabihf-g++-10",
+      "args": [
+        "-std=c++20",
+        "-g",
+        "-Wall",
+        "-Wno-nonnull",
+        "-I/usr/local/boost_1_77_0_ARM",
+        "-L/usr/arm-linux-gnueabihf/lib",
+        "-I${workspaceFolder}",
+        "-I${workspaceFolder}/../LIB.Share",
+        "-I${workspaceFolder}/../LIB.Utils",
+        "${workspaceFolder}/main.cpp",
+        "${workspaceFolder}/main_connection.cpp",
+        "${workspaceFolder}/../LIB.Share/utilsShare.cpp",
+        "${workspaceFolder}/../LIB.Share/utilsShareMQTT.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsChrono.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsException.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsLog.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsPacketMQTTv3_1_1.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsTime.cpp",
+        "-o",
+        "${workspaceFolder}/sensor_a",
+        "-lpthread"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    },
+    {
+      "type": "cppbuild",
+      "label": "C/C++: g++ build active file",
+      "command": "/usr/bin/g++-11",
+      "args": [
+        "-fdiagnostics-color=always",
+        "-std=c++20",
+        "-g",
+        "-Wall",
+        "-Wno-nonnull",
+        "-I${workspaceFolder}",
+        "-I${workspaceFolder}/../LIB.Utils",
+        "-I${workspaceFolder}/../LIB.Share",
+        "-I/usr/local/boost_1_77_0",
+        "${workspaceFolder}/main.cpp",
+        "${workspaceFolder}/main_connection.cpp",
+        "${workspaceFolder}/../LIB.Share/utilsShare.cpp",
+        "${workspaceFolder}/../LIB.Share/utilsShareMQTT.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsChrono.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsException.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsLog.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsPacketMQTTv3_1_1.cpp",
+        "${workspaceFolder}/../LIB.Utils/utilsTime.cpp",
+        "-o",
+        "${workspaceFolder}/sensor_a_dbg",
+        "-lpthread"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": [
+        "$gcc"
+      ],
+      "group": "build",
+      "detail": "compiler: /usr/bin/g++"
+    }
+  ]
+}
