@@ -17,9 +17,15 @@ class tLogger : public utils::log::tLog
 public:
 	tLogger() = default;
 
-	void PacketSent(const std::string& msg)
+	void PacketSent(const std::string& msg, const std::vector<std::uint8_t>& data)
 	{
 		WriteLine(true, utils::log::tColor::LightBlue, msg);
+		WriteHex(true, utils::log::tColor::Blue, "SND", data);
+	}
+
+	void PacketReceivedRaw(const std::vector<std::uint8_t>& data)
+	{
+		WriteHex(true, utils::log::tColor::Green, "RCV", data);
 	}
 
 	void PacketReceived(const std::string& msg)

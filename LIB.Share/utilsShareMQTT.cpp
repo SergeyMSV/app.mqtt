@@ -96,6 +96,16 @@ void tConnection::Subscribe(const std::vector<mqtt::tSubscribeTopicFilter>& topi
 	Transaction(mqtt::tPacketSUBSCRIBE(++m_PacketId, topicFilters));
 }
 
+void tConnection::Unsubscribe(const mqtt::tString& topicFilter)
+{
+	Transaction(mqtt::tPacketUNSUBSCRIBE(++m_PacketId, topicFilter));
+}
+
+void tConnection::Unsubscribe(const std::vector<mqtt::tString>& topicFilters)
+{
+	Transaction(mqtt::tPacketUNSUBSCRIBE(++m_PacketId, topicFilters));
+}
+
 void tConnection::Ping()
 {
 	Transaction(mqtt::tPacketPINGREQ());
@@ -166,8 +176,6 @@ std::vector<tConnection::tPacketData> tConnection::ReceivePacket()
 		mqtt::tSpan Span(ReceivedData, ReceivedDataRemainsSize);
 		while (ReceivedDataRemainsSize)
 		{
-			g_Log.WriteHex(true, utils::log::tColor::LightCyan, "RCV", std::vector<std::uint8_t>(Span.begin(), Span.end()));
-
 			auto Res = mqtt::TestPacket(Span);
 			if (!Res.has_value())
 			{
@@ -194,7 +202,7 @@ void tConnection::TaskReceiver()
 
 		for (auto& [ControlPacketType, PacketVector] : ReceivedPackets)
 		{
-			g_Log.WriteHex(true, utils::log::tColor::Cyan, "RCV", PacketVector);
+			g_Log.PacketReceivedRaw(PacketVector);
 
 			m_ReceivedMessages.Put(ControlPacketType, PacketVector);
 

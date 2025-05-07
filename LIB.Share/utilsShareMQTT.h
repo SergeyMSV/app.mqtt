@@ -120,7 +120,8 @@ public:
 	void Publish_ExactlyOnceDelivery(bool retain, bool dup, const std::string& topicName, const std::vector<std::uint8_t>& payload);
 	void Subscribe(const mqtt::tSubscribeTopicFilter& topicFilter);
 	void Subscribe(const std::vector<mqtt::tSubscribeTopicFilter>& topicFilters);
-	//void Unsubscribe(const std::string& topicFilter);
+	void Unsubscribe(const mqtt::tString& topicFilter);
+	void Unsubscribe(const std::vector<mqtt::tString>& topicFilters);
 	void Ping();
 	void Disconnect();
 
@@ -168,11 +169,9 @@ private:
 
 		utils::share::tMeasureDuration Measure("TTH");
 
-		g_Log.PacketSent(packet.ToString());
-
 		auto PackVector = packet.ToVector();
 
-		g_Log.WriteHex(true, utils::log::tColor::LightMagenta, "SND", PackVector);
+		g_Log.PacketSent(packet.ToString(), PackVector);
 
 		m_ReceivedMessages.Clear(tRsp::GetControlPacketType());
 
