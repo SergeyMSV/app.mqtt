@@ -10,7 +10,7 @@ void TaskConnectionHandler(std::string_view host, std::string_view service, cons
 	utils::share::tConnection Connection(host, service, KeepAlive);
 
 	//const bool SessionPresent = 
-	Connection.Connect(mqtt::tSessionStateRequest::Continue, "duper_star", mqtt::tQoS::AtMostOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
+	Connection.Connect(mqtt::tSessionStateRequest::Continue, "duper_star_SensorA", mqtt::tQoS::AtMostOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883
 
 	//if (!SessionContinue)
 	Connection.Subscribe({ "SensorA_Settings", mqtt::tQoS::ExactlyOnceDelivery });

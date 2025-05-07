@@ -39,7 +39,7 @@ tConnection::~tConnection()
 
 bool tConnection::Connect(mqtt::tSessionStateRequest sessionStateRequest, const std::string& clientId, mqtt::tQoS willQos, bool willRetain, const std::string& willTopic, const std::string& willMessage)
 {
-	mqtt::tPacketCONNECT Pack(mqtt::tSessionStateRequest::Continue, m_KeepAlive, clientId, willQos, willRetain, willTopic, willMessage);
+	mqtt::tPacketCONNECT Pack(sessionStateRequest, m_KeepAlive, clientId, willQos, willRetain, willTopic, willMessage);
 	auto PackRsp = Transaction(Pack);
 	m_KeepConnection = true; // [TBD] It might be a good idea to check if no error occurred.
 	return PackRsp.has_value() && PackRsp->GetVariableHeader().ConnectAcknowledgeFlags.Field.SessionPresent;
@@ -47,7 +47,7 @@ bool tConnection::Connect(mqtt::tSessionStateRequest sessionStateRequest, const 
 
 bool tConnection::Connect(mqtt::tSessionStateRequest sessionStateRequest, const std::string& clientId)
 {
-	mqtt::tPacketCONNECT Pack(mqtt::tSessionStateRequest::Continue, m_KeepAlive, clientId);
+	mqtt::tPacketCONNECT Pack(sessionStateRequest, m_KeepAlive, clientId);
 	auto PackRsp = Transaction(Pack);
 	m_KeepConnection = true; // [TBD] It might be a good idea to check if no error occurred.
 	return PackRsp.has_value() && PackRsp->GetVariableHeader().ConnectAcknowledgeFlags.Field.SessionPresent;

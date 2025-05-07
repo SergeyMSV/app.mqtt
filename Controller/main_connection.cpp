@@ -9,10 +9,8 @@ void TaskConnectionHandler(std::string_view host, std::string_view service)
 
 	utils::share::tConnection Connection(host, service, KeepAlive);
 
-	//const bool SessionPresent = 
-	Connection.Connect(mqtt::tSessionStateRequest::Continue, "duper_star_Controller"); // 1883
-
-	//if (!SessionContinue)
+	const bool SessionPresent = Connection.Connect(mqtt::tSessionStateRequest::Continue, "duper_star_Controller"); // 1883
+	if (!SessionPresent)
 	{
 		std::vector<mqtt::tSubscribeTopicFilter> Filters;
 		Filters.emplace_back("SensorA_will", mqtt::tQoS::AtMostOnceDelivery);		// [!] it differs from SensorA
