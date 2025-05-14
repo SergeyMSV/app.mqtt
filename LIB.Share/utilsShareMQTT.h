@@ -33,6 +33,7 @@ namespace share
 namespace hidden
 {
 
+template<std::size_t QueueCapacity>
 class tReceivedMessages
 {
 	std::map<mqtt::tControlPacketType, std::deque<std::vector<std::uint8_t>>> m_Queue;
@@ -47,6 +48,9 @@ public:
 	{
 		std::lock_guard<std::mutex> Guard(m_Mtx);
 		m_Queue[packType].push_back(std::move(packData));
+
+		if (m_Queue[packType].size() > QueueCapacity)
+			m_Queue[packType].pop_front();
 	}
 	//void Put(mqtt::tControlPacketType packType, mqtt::tSpan packData)
 	//{
@@ -103,7 +107,7 @@ class tConnection
 	utils::chrono::tTimePoint m_TransactionTime;
 	std::thread m_KeepConnectionThread;
 	bool m_KeepConnection;
-	hidden::tReceivedMessages m_ReceivedMessages;
+	hidden::tReceivedMessages<5> m_ReceivedMessages; // [#]
 	const std::uint16_t m_KeepAlive;
 	std::uint16_t m_PacketId;
 
