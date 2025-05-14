@@ -223,13 +223,14 @@ bool tConnection::HandlePacket(mqtt::tControlPacketType packType, std::vector<st
 	{
 		auto Pack_parsed = mqtt::tPacketPUBLISH_Parse::Parse(PacketRawSpan);
 		if (!Pack_parsed.has_value())
-			THROW_RUNTIME_ERROR("Received response has not been parsed."); // Res.error() - put it into the message
+			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedParseError); // Res.error() - put it into the message
 		// [TBD] Apply data from the packet
 		switch (Pack_parsed->GetFixedHeader().GetQoS())
 		{
 		case mqtt::tQoS::AtMostOnceDelivery:
 			break;
 		case mqtt::tQoS::AtLeastOnceDelivery:
+
 			// [TBD] send PUBACK
 			break;
 		case mqtt::tQoS::ExactlyOnceDelivery:
@@ -242,7 +243,7 @@ bool tConnection::HandlePacket(mqtt::tControlPacketType packType, std::vector<st
 	{
 		auto Pack_parsed = mqtt::tPacketPUBREL::Parse(PacketRawSpan);
 		if (!Pack_parsed.has_value())
-			THROW_RUNTIME_ERROR("Received response has not been parsed."); // Res.error() - put it into the message
+			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedParseError); // Res.error() - put it into the message
 
 		// [TBD] send PUBCOMP
 
@@ -271,12 +272,12 @@ bool tConnection::HandlePacket(mqtt::tControlPacketType packType, std::vector<st
 
 		std::vector<std::uint8_t> PacketRaw = m_ReceivedMessages.Get(tRsp::GetControlPacketType());
 		if (PacketRaw.empty())
-			THROW_RUNTIME_ERROR("No data has been received.");
+			THROW_RUNTIME_ERROR(StrExceptionReceivedNoData);
 
 		mqtt::tSpan PacketRawSpan(PacketRaw);
 		auto Pack_parsed = tRsp::Parse(PacketRawSpan);
 		if (!Pack_parsed.has_value())
-			THROW_RUNTIME_ERROR("Received response has not been parsed."); // Res.error() - put it into the message
+			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedParseError); // Res.error() - put it into the message
 		g_Log.PacketReceived(Pack_parsed->ToString());
 
 		return std::optional<tRsp>(*Pack_parsed);//std::move(*Pack_parsed);

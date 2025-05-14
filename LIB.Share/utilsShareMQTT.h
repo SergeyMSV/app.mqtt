@@ -33,6 +33,9 @@ namespace share
 namespace hidden
 {
 
+constexpr char StrExceptionReceivedNoData[] = "No data has been received.";
+constexpr char StrExceptionReceivedParseError[] = "Received response has not been parsed.";
+
 template<std::size_t QueueCapacity>
 class tReceivedMessages
 {
@@ -190,12 +193,12 @@ private:
 
 		std::vector<std::uint8_t> PacketRaw = m_ReceivedMessages.Get(tRsp::GetControlPacketType());
 		if (PacketRaw.empty())
-			THROW_RUNTIME_ERROR("No data has been received.");
+			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedNoData);
 
 		mqtt::tSpan PacketRawSpan(PacketRaw);
 		auto Pack_parsed = tRsp::Parse(PacketRawSpan);
 		if (!Pack_parsed.has_value())
-			THROW_RUNTIME_ERROR("Received response has not been parsed."); // Res.error() - put it into the message
+			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedParseError); // Res.error() - put it into the message
 		g_Log.PacketReceived(Pack_parsed->ToString());
 
 		return std::optional<tRsp>(*Pack_parsed);//std::move(*Pack_parsed);
