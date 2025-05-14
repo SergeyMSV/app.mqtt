@@ -137,6 +137,8 @@ private:
 	std::vector<tPacketData> ReceivePacket();
 	void TaskReceiver();
 
+	bool HandlePacket(mqtt::tControlPacketType packType, std::vector<std::uint8_t>& packData);
+
 	bool IsReceiverInOperation() const;
 
 	template<typename T>

@@ -204,11 +204,83 @@ void tConnection::TaskReceiver()
 		{
 			g_Log.PacketReceivedRaw(PacketVector);
 
+			if (HandlePacket(ControlPacketType, PacketVector))
+				continue;
+
 			m_ReceivedMessages.Put(ControlPacketType, PacketVector);
 
 			m_ReceivedMessages.Notify(ControlPacketType);
 		}
 	}
+}
+
+bool tConnection::HandlePacket(mqtt::tControlPacketType packType, std::vector<std::uint8_t>& packData)
+{
+	mqtt::tSpan PacketRawSpan(packData);
+	switch (packType)
+	{
+	case mqtt::tControlPacketType::PUBLISH:
+	{
+		auto Pack_parsed = mqtt::tPacketPUBLISH_Parse::Parse(PacketRawSpan);
+		if (!Pack_parsed.has_value())
+			THROW_RUNTIME_ERROR("Received response has not been parsed."); // Res.error() - put it into the message
+		// [TBD] Apply data from the packet
+		switch (Pack_parsed->GetFixedHeader().GetQoS())
+		{
+		case mqtt::tQoS::AtMostOnceDelivery:
+			break;
+		case mqtt::tQoS::AtLeastOnceDelivery:
+			// [TBD] send PUBACK
+			break;
+		case mqtt::tQoS::ExactlyOnceDelivery:
+			// [TBD] send PUBREC
+			break;
+		}
+		return true;
+	}
+	case mqtt::tControlPacketType::PUBREL:
+	{
+		auto Pack_parsed = mqtt::tPacketPUBREL::Parse(PacketRawSpan);
+		if (!Pack_parsed.has_value())
+			THROW_RUNTIME_ERROR("Received response has not been parsed."); // Res.error() - put it into the message
+
+		// [TBD] send PUBCOMP
+
+		return true;
+	}
+	}
+	return false;
+
+	/*
+		using tRsp = tCmd::response_type;
+
+		utils::share::tMeasureDuration Measure("TTH");
+
+		auto PackVector = packet.ToVector();
+
+		g_Log.PacketSent(packet.ToString(), PackVector);
+
+		m_ReceivedMessages.Clear(tRsp::GetControlPacketType());
+
+		m_Socket->write_some(boost::asio::buffer(PackVector));
+
+		if (std::is_same_v<tRsp, mqtt::tPacketNOACK>)
+			return {};
+
+		m_ReceivedMessages.Wait(tRsp::GetControlPacketType());
+
+		std::vector<std::uint8_t> PacketRaw = m_ReceivedMessages.Get(tRsp::GetControlPacketType());
+		if (PacketRaw.empty())
+			THROW_RUNTIME_ERROR("No data has been received.");
+
+		mqtt::tSpan PacketRawSpan(PacketRaw);
+		auto Pack_parsed = tRsp::Parse(PacketRawSpan);
+		if (!Pack_parsed.has_value())
+			THROW_RUNTIME_ERROR("Received response has not been parsed."); // Res.error() - put it into the message
+		g_Log.PacketReceived(Pack_parsed->ToString());
+
+		return std::optional<tRsp>(*Pack_parsed);//std::move(*Pack_parsed);
+	*/
 }
 
 bool tConnection::IsReceiverInOperation() const
