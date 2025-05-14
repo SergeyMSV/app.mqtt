@@ -214,6 +214,18 @@ void tConnection::TaskReceiver()
 	}
 }
 
+template<typename tRsp>
+void SendResponse(std::unique_ptr<tcp::socket>& socket, std::optional<mqtt::tUInt16> packetIdOpt)
+{
+	// [*] It might be a good idea to close connection in case of absence of PacketId in the incoming packet.
+	if (!packetIdOpt.has_value())
+		return;
+	auto Pack = tRsp(*packetIdOpt);
+	auto PackVector = Pack.ToVector();
+	g_Log.PacketSent(Pack.ToString(), PackVector);
+	socket->write_some(boost::asio::buffer(PackVector));
+}
+
 bool tConnection::HandlePacket(mqtt::tControlPacketType packType, std::vector<std::uint8_t>& packData)
 {
 	mqtt::tSpan PacketRawSpan(packData);
@@ -224,17 +236,20 @@ bool tConnection::HandlePacket(mqtt::tControlPacketType packType, std::vector<st
 		auto Pack_parsed = mqtt::tPacketPUBLISH_Parse::Parse(PacketRawSpan);
 		if (!Pack_parsed.has_value())
 			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedParseError); // Res.error() - put it into the message
+
 		// [TBD] Apply data from the packet
+		g_Log.PacketReceived(Pack_parsed->ToString()); // DEMO
+		////////
+
 		switch (Pack_parsed->GetFixedHeader().GetQoS())
 		{
 		case mqtt::tQoS::AtMostOnceDelivery:
 			break;
 		case mqtt::tQoS::AtLeastOnceDelivery:
-
-			// [TBD] send PUBACK
+			SendResponse<mqtt::tPacketPUBACK>(m_Socket, Pack_parsed->GetVariableHeader().PacketId);
 			break;
 		case mqtt::tQoS::ExactlyOnceDelivery:
-			// [TBD] send PUBREC
+			SendResponse<mqtt::tPacketPUBREC>(m_Socket, Pack_parsed->GetVariableHeader().PacketId);
 			break;
 		}
 		return true;
@@ -244,44 +259,11 @@ bool tConnection::HandlePacket(mqtt::tControlPacketType packType, std::vector<st
 		auto Pack_parsed = mqtt::tPacketPUBREL::Parse(PacketRawSpan);
 		if (!Pack_parsed.has_value())
 			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedParseError); // Res.error() - put it into the message
-
-		// [TBD] send PUBCOMP
-
+		SendResponse<mqtt::tPacketPUBCOMP>(m_Socket, Pack_parsed->GetVariableHeader().PacketId);
 		return true;
 	}
 	}
 	return false;
-
-	/*
-		using tRsp = tCmd::response_type;
-
-		utils::share::tMeasureDuration Measure("TTH");
-
-		auto PackVector = packet.ToVector();
-
-		g_Log.PacketSent(packet.ToString(), PackVector);
-
-		m_ReceivedMessages.Clear(tRsp::GetControlPacketType());
-
-		m_Socket->write_some(boost::asio::buffer(PackVector));
-
-		if (std::is_same_v<tRsp, mqtt::tPacketNOACK>)
-			return {};
-
-		m_ReceivedMessages.Wait(tRsp::GetControlPacketType());
-
-		std::vector<std::uint8_t> PacketRaw = m_ReceivedMessages.Get(tRsp::GetControlPacketType());
-		if (PacketRaw.empty())
-			THROW_RUNTIME_ERROR(StrExceptionReceivedNoData);
-
-		mqtt::tSpan PacketRawSpan(PacketRaw);
-		auto Pack_parsed = tRsp::Parse(PacketRawSpan);
-		if (!Pack_parsed.has_value())
-			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedParseError); // Res.error() - put it into the message
-		g_Log.PacketReceived(Pack_parsed->ToString());
-
-		return std::optional<tRsp>(*Pack_parsed);//std::move(*Pack_parsed);
-	*/
 }
 
 bool tConnection::IsReceiverInOperation() const
