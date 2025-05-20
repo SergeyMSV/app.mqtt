@@ -16,8 +16,11 @@ void TaskConnectionHandler(std::string_view host, std::string_view service)
 		Filters.emplace_back("SensorA_will", mqtt::tQoS::AtMostOnceDelivery);		// [!] it differs from SensorA
 		Filters.emplace_back("SensorA_DateTime", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
 		Filters.emplace_back("SensorA_DateTime_0", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
-		Filters.emplace_back("SensorA_DateTime_1", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
-		Filters.emplace_back("SensorA_DateTime_2", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
+		Filters.emplace_back("SensorA_DateTime_1", mqtt::tQoS::AtLeastOnceDelivery);	// [!] it differs from SensorA
+		Filters.emplace_back("SensorA_DateTime_2", mqtt::tQoS::ExactlyOnceDelivery);	// [!] it differs from SensorA
+		//Filters.emplace_back("SensorA_DateTime_0", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
+		//Filters.emplace_back("SensorA_DateTime_1", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
+		//Filters.emplace_back("SensorA_DateTime_2", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
 		Connection.Subscribe(Filters);
 	}
 	
