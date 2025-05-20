@@ -5,13 +5,17 @@
 #define LIB_UTILS_SHARE_MQTT_CONNECTION_RECEIVE_BUFFER_SIZE 128
 #endif
 
+#ifndef LIB_UTILS_SHARE_MQTT_PACKET_ID_START
+#define LIB_UTILS_SHARE_MQTT_PACKET_ID_START 0
+#endif
+
 namespace utils
 {
 namespace share
 {
 
 tConnection::tConnection(std::string_view host, std::string_view service, std::uint16_t keepAlive)
-	:m_KeepConnection(false), m_KeepAlive(keepAlive), m_PacketId(0)
+	:m_KeepConnection(false), m_KeepAlive(keepAlive), m_PacketId(LIB_UTILS_SHARE_MQTT_PACKET_ID_START)
 
 {
 	tcp::resolver Resolver(m_ioc);
@@ -78,7 +82,7 @@ void tConnection::Publish_ExactlyOnceDelivery(bool retain, bool dup, const std::
 	{
 		g_Log.TestMessage("rsp pubrec: " + std::to_string((int)PackRsp->GetVariableHeader().PacketId.Value));
 
-		auto PackRsp2 = Transaction(mqtt::tPacketPUBREL(++m_PacketId));
+		auto PackRsp2 = Transaction(mqtt::tPacketPUBREL(PackRsp->GetVariableHeader().PacketId));
 		if (PackRsp2.has_value())
 		{
 			g_Log.TestMessage("rsp pubcomp: " + std::to_string((int)PackRsp2->GetVariableHeader().PacketId.Value));
