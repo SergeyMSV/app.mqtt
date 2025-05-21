@@ -164,6 +164,7 @@
     <ClInclude Include="..\LIB.Utils\utilsException.h" />
     <ClInclude Include="..\LIB.Utils\utilsExits.h" />
     <ClInclude Include="..\LIB.Utils\utilsLog.h" />
+    <ClInclude Include="..\LIB.Utils\utilsMultithread.h" />
     <ClInclude Include="..\LIB.Utils\utilsPacketMQTTv3_1_1.h" />
     <ClInclude Include="..\LIB.Utils\utilsStd.h" />
     <ClInclude Include="..\LIB.Utils\utilsTime.h" />

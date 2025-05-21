@@ -84,5 +84,8 @@
     <ClInclude Include="..\LIB.Utils\utilsTime.h">
       <Filter>LIB.Utils</Filter>
     </ClInclude>
+    <ClInclude Include="..\LIB.Utils\utilsMultithread.h">
+      <Filter>LIB.Utils</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

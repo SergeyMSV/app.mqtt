@@ -7,6 +7,10 @@
 
 #include <libConfig.h>
 
+#ifndef LIB_UTILS_SHARE_MQTT_QUEUE_INCOMING_CAPACITY
+#define LIB_UTILS_SHARE_MQTT_QUEUE_INCOMING_CAPACITY 10
+#endif
+
 #include <condition_variable>
 #include <deque>
 #include <future>
@@ -20,6 +24,7 @@
 #include <boost/asio.hpp>
 
 #include <utilsException.h>
+#include <utilsMultithread.h>
 #include <utilsPacketMQTTv3_1_1.h>
 #include <utilsShare.h>
 
@@ -101,6 +106,7 @@ public:
 
 class tConnection
 {
+	using tDataSet = multithread::tQueue<std::string, LIB_UTILS_SHARE_MQTT_QUEUE_INCOMING_CAPACITY>;
 	using tPacketData = std::pair<mqtt::tControlPacketType, std::vector<std::uint8_t>>;
 
 	boost::asio::io_context m_ioc;
@@ -113,6 +119,7 @@ class tConnection
 	hidden::tReceivedMessages<5> m_ReceivedMessages; // [#]
 	const std::uint16_t m_KeepAlive;
 	std::uint16_t m_PacketId;
+	tDataSet m_DataSetIncoming;
 
 public:
 	tConnection() = delete;
@@ -133,6 +140,9 @@ public:
 	void Disconnect();
 
 	bool IsConnected() const;
+
+	bool IsIncomingEmpty() const { return m_DataSetIncoming.empty(); }
+	std::string GetIncoming() { return m_DataSetIncoming.get_front(); }
 
 private:
 	void KeepConnectionAlive();

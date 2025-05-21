@@ -242,6 +242,7 @@ bool tConnection::HandlePacket(mqtt::tControlPacketType packType, std::vector<st
 			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedParseError); // Res.error() - put it into the message
 
 		// [TBD] Apply data from the packet
+		m_DataSetIncoming.push_back(Pack_parsed->ToString()); // [TBD] put here retrieved topic names and values
 		g_Log.PacketReceived(Pack_parsed->ToString()); // DEMO
 		////////
 

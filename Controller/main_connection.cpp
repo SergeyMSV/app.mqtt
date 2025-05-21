@@ -32,6 +32,12 @@ void TaskConnectionHandler(std::string_view host, std::string_view service)
 		if (!Connection.IsConnected())
 			THROW_RUNTIME_ERROR("The connection has been broken by the MQTT broker.");
 
+		while (!Connection.IsIncomingEmpty())
+		{
+			g_Log.TestMessage(Connection.GetIncoming());
+		}
+
+
 		std::this_thread::sleep_for(std::chrono::seconds(15));
 
 		/*switch (i)
