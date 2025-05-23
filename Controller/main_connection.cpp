@@ -34,7 +34,8 @@ void TaskConnectionHandler(std::string_view host, std::string_view service)
 
 		while (!Connection.IsIncomingEmpty())
 		{
-			g_Log.TestMessage(Connection.GetIncoming());
+			auto IncMsg = Connection.GetIncoming();
+			g_Log.PublishMessage(IncMsg.TopicName, IncMsg.Payload);
 		}
 
 

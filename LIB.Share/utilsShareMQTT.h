@@ -104,9 +104,15 @@ public:
 
 }
 
+struct tIncomingMessage
+{
+	std::string TopicName;
+	std::vector<std::uint8_t> Payload;
+};
+
 class tConnection
 {
-	using tDataSet = multithread::tQueue<std::string, LIB_UTILS_SHARE_MQTT_QUEUE_INCOMING_CAPACITY>;
+	using tDataSet = multithread::tQueue<tIncomingMessage, LIB_UTILS_SHARE_MQTT_QUEUE_INCOMING_CAPACITY>;
 	using tPacketData = std::pair<mqtt::tControlPacketType, std::vector<std::uint8_t>>;
 
 	boost::asio::io_context m_ioc;
@@ -142,7 +148,7 @@ public:
 	bool IsConnected() const;
 
 	bool IsIncomingEmpty() const { return m_DataSetIncoming.empty(); }
-	std::string GetIncoming() { return m_DataSetIncoming.get_front(); }
+	tIncomingMessage GetIncoming() { return m_DataSetIncoming.get_front(); }
 
 private:
 	void KeepConnectionAlive();

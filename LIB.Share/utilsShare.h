@@ -38,6 +38,11 @@ public:
 		WriteLine(true, utils::log::tColor::LightYellow, msg);
 	}
 
+	void PublishMessage(const std::string& topicName, const std::vector<std::uint8_t>& payload)
+	{
+		WriteHex(true, utils::log::tColor::LightMagenta, topicName, payload);
+	}
+
 	void Operation(const std::string& msg)
 	{
 		WriteLine(true, utils::log::tColor::Yellow, msg);

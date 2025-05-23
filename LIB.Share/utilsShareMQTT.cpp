@@ -141,9 +141,9 @@ void tConnection::KeepConnectionAlive()
 			std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
 	}
-	catch (...)
+	catch (std::exception& ex)
 	{
-		// [TBD] NOTIFY ALL THREADS THAT SMTH FAILED
+		g_Log.Exception(ex.what());
 	}
 }
 
@@ -241,10 +241,7 @@ bool tConnection::HandlePacket(mqtt::tControlPacketType packType, std::vector<st
 		if (!Pack_parsed.has_value())
 			THROW_RUNTIME_ERROR(hidden::StrExceptionReceivedParseError); // Res.error() - put it into the message
 
-		// [TBD] Apply data from the packet
-		m_DataSetIncoming.push_back(Pack_parsed->ToString()); // [TBD] put here retrieved topic names and values
-		g_Log.PacketReceived(Pack_parsed->ToString()); // DEMO
-		////////
+		m_DataSetIncoming.push_back({ Pack_parsed->GetVariableHeader().TopicName, Pack_parsed->GetPayload() });
 
 		switch (Pack_parsed->GetFixedHeader().GetQoS())
 		{
