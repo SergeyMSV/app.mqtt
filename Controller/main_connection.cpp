@@ -27,7 +27,7 @@ void TaskConnectionHandler(std::string_view host, std::string_view service)
 	Connection.Publish_ExactlyOnceDelivery(true, false, "SensorA_Settings", { Settings.begin(), Settings.end() });
 
 	/////////////////////////////////////
-	for (int i = 0; i < 100; ++i)
+	for (int i = 0; i < 1500; ++i)
 	{
 		if (!Connection.IsConnected())
 			THROW_RUNTIME_ERROR("The connection has been broken by the MQTT broker.");
@@ -38,12 +38,11 @@ void TaskConnectionHandler(std::string_view host, std::string_view service)
 			g_Log.PublishMessage(IncMsg.TopicName, IncMsg.Payload);
 		}
 
-
-		std::this_thread::sleep_for(std::chrono::seconds(15));
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 
 		/*switch (i)
 		{
-		case 10:
+		case 150:
 		{
 			std::vector<mqtt::tString> Filters;
 			Filters.push_back("SensorA_DateTime_0");
@@ -52,7 +51,7 @@ void TaskConnectionHandler(std::string_view host, std::string_view service)
 			Connection.Unsubscribe(Filters);
 			break;
 		}
-		case 20:
+		case 300:
 		{
 			std::vector<mqtt::tSubscribeTopicFilter> Filters;
 			Filters.emplace_back("SensorA_will", mqtt::tQoS::AtMostOnceDelivery);		// [!] it differs from SensorA
