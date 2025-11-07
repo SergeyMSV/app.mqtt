@@ -26,13 +26,11 @@
 #include <utilsException.h>
 #include <utilsMultithread.h>
 #include <utilsPacketMQTTv3_1_1.h>
-#include <utilsShare.h>
+#include <shareLog.h>
 
 using boost::asio::ip::tcp;
 namespace mqtt = utils::packet::mqtt_3_1_1;
 
-namespace utils
-{
 namespace share
 {
 namespace hidden
@@ -112,7 +110,7 @@ struct tIncomingMessage
 
 class tConnection
 {
-	using tDataSet = multithread::tQueue<tIncomingMessage, LIB_SHARE_MQTT_QUEUE_INCOMING_CAPACITY>;
+	using tDataSet = utils::multithread::tQueue<tIncomingMessage, LIB_SHARE_MQTT_QUEUE_INCOMING_CAPACITY>;
 	using tPacketData = std::pair<mqtt::tControlPacketType, std::vector<std::uint8_t>>;
 
 	boost::asio::io_context m_ioc;
@@ -192,7 +190,7 @@ private:
 	{
 		using tRsp = tCmd::response_type;
 
-		utils::share::tMeasureDuration Measure("TTH");
+		share::tMeasureDuration Measure("TTH");
 
 		auto PackVector = packet.ToVector();
 
@@ -221,5 +219,4 @@ private:
 	}
 };
 
-}
 }

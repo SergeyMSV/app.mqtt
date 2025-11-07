@@ -1,21 +1,19 @@
-#include "utilsShareMQTT.h"
+#include "shareMQTT.h"
 #include "utilsStd.h"
 
-#ifndef LIB_UTILS_SHARE_MQTT_CONNECTION_RECEIVE_BUFFER_SIZE
-#define LIB_UTILS_SHARE_MQTT_CONNECTION_RECEIVE_BUFFER_SIZE 128
+#ifndef LIB_SHARE_MQTT_CONNECTION_RECEIVE_BUFFER_SIZE
+#define LIB_SHARE_MQTT_CONNECTION_RECEIVE_BUFFER_SIZE 128
 #endif
 
-#ifndef LIB_UTILS_SHARE_MQTT_PACKET_ID_START
-#define LIB_UTILS_SHARE_MQTT_PACKET_ID_START 0
+#ifndef LIB_SHARE_MQTT_PACKET_ID_START
+#define LIB_SHARE_MQTT_PACKET_ID_START 0
 #endif
 
-namespace utils
-{
 namespace share
 {
 
 tConnection::tConnection(std::string_view host, std::string_view service, std::uint16_t keepAlive)
-	:m_KeepConnection(false), m_KeepAlive(keepAlive), m_PacketId(LIB_UTILS_SHARE_MQTT_PACKET_ID_START)
+	:m_KeepConnection(false), m_KeepAlive(keepAlive), m_PacketId(LIB_SHARE_MQTT_PACKET_ID_START)
 
 {
 	tcp::resolver Resolver(m_ioc);
@@ -151,7 +149,7 @@ std::vector<tConnection::tPacketData> tConnection::ReceivePacket()
 {
 	auto SocketReadSome = [this](std23::vector<std::uint8_t>& rcvdData)->bool
 		{
-			std23::vector<std::uint8_t> Buffer(LIB_UTILS_SHARE_MQTT_CONNECTION_RECEIVE_BUFFER_SIZE); //[#] max received data of packets
+			std23::vector<std::uint8_t> Buffer(LIB_SHARE_MQTT_CONNECTION_RECEIVE_BUFFER_SIZE); //[#] max received data of packets
 
 			boost::system::error_code Error;
 			const std::size_t SizeRcv = m_Socket->read_some(boost::asio::buffer(Buffer), Error);
@@ -273,5 +271,4 @@ bool tConnection::IsReceiverInOperation() const
 	return m_FutureReceiver.wait_for(std::chrono::milliseconds(1)) != std::future_status::ready;
 }
 
-}
 }

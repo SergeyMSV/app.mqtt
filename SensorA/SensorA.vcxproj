@@ -139,8 +139,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\LIB.Share\utilsShare.cpp" />
-    <ClCompile Include="..\LIB.Share\utilsShareMQTT.cpp" />
+    <ClCompile Include="..\LIB.Share\shareLog.cpp" />
+    <ClCompile Include="..\LIB.Share\shareMQTT.cpp" />
     <ClCompile Include="..\LIB.Utils\utilsChrono.cpp" />
     <ClCompile Include="..\LIB.Utils\utilsException.cpp" />
     <ClCompile Include="..\LIB.Utils\utilsLog.cpp" />
@@ -157,8 +157,8 @@
     <None Include="SensorA.code-workspace" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\LIB.Share\utilsShare.h" />
-    <ClInclude Include="..\LIB.Share\utilsShareMQTT.h" />
+    <ClInclude Include="..\LIB.Share\shareLog.h" />
+    <ClInclude Include="..\LIB.Share\shareMQTT.h" />
     <ClInclude Include="..\LIB.Utils\utilsBase.h" />
     <ClInclude Include="..\LIB.Utils\utilsChrono.h" />
     <ClInclude Include="..\LIB.Utils\utilsException.h" />

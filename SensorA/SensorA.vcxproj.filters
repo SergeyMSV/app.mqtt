@@ -6,16 +6,13 @@
     <ClCompile Include="..\LIB.Utils\utilsLog.cpp">
       <Filter>LIB.Utils</Filter>
     </ClCompile>
-    <ClCompile Include="..\LIB.Share\utilsShare.cpp">
-      <Filter>LIB.Share</Filter>
-    </ClCompile>
     <ClCompile Include="..\LIB.Utils\utilsChrono.cpp">
       <Filter>LIB.Utils</Filter>
     </ClCompile>
     <ClCompile Include="..\LIB.Utils\utilsException.cpp">
       <Filter>LIB.Utils</Filter>
     </ClCompile>
-    <ClCompile Include="..\LIB.Share\utilsShareMQTT.cpp">
+    <ClCompile Include="..\LIB.Share\shareMQTT.cpp">
       <Filter>LIB.Share</Filter>
     </ClCompile>
     <ClCompile Include="..\LIB.Utils\utilsPacketMQTTv3_1_1.cpp">
@@ -24,6 +21,7 @@
     <ClCompile Include="..\LIB.Utils\utilsTime.cpp">
       <Filter>LIB.Utils</Filter>
     </ClCompile>
+    <ClCompile Include="..\LIB.Share\shareLog.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="LIB.Utils">
@@ -72,10 +70,7 @@
     <ClInclude Include="..\LIB.Utils\utilsLog.h">
       <Filter>LIB.Utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\LIB.Share\utilsShare.h">
-      <Filter>LIB.Share</Filter>
-    </ClInclude>
-    <ClInclude Include="..\LIB.Share\utilsShareMQTT.h">
+    <ClInclude Include="..\LIB.Share\shareMQTT.h">
       <Filter>LIB.Share</Filter>
     </ClInclude>
     <ClInclude Include="..\LIB.Utils\utilsPacketMQTTv3_1_1.h">
@@ -87,5 +82,6 @@
     <ClInclude Include="..\LIB.Utils\utilsMultithread.h">
       <Filter>LIB.Utils</Filter>
     </ClInclude>
+    <ClInclude Include="..\LIB.Share\shareLog.h" />
   </ItemGroup>
 </Project>

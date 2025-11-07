@@ -1,13 +1,13 @@
 #include "main.h"
 
-#include <utilsShare.h>
-#include <utilsShareMQTT.h>
+#include <shareLog.h>
+#include <shareMQTT.h>
 
 void TaskConnectionHandler(std::string_view host, std::string_view service, const std::string& sensorData)
 {
 	constexpr std::uint16_t KeepAlive = 15; // sec. //[#] - TaskTransactionWait(..) should be taken into consideration
 
-	utils::share::tConnection Connection(host, service, KeepAlive);
+	share::tConnection Connection(host, service, KeepAlive);
 
 	//const bool SessionPresent = 
 	Connection.Connect(mqtt::tSessionStateRequest::Continue, "duper_star_SensorA", mqtt::tQoS::AtMostOnceDelivery, true, "SensorA_will", "something wrong has happened"); // 1883

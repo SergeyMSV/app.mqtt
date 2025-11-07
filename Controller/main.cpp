@@ -7,7 +7,7 @@
 
 #include <utilsException.h>
 #include <utilsExits.h>
-#include <utilsShare.h>
+#include <shareLog.h>
 
 void TaskConnectionHandler(std::string_view host, std::string_view service);
 
@@ -17,7 +17,7 @@ int main()
 
 	try
 	{
-		utils::share::tMeasureDuration Measure("MAIN");
+		share::tMeasureDuration Measure("MAIN");
 		//for (;;)
 		{
 

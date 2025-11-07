@@ -6,7 +6,7 @@
 
 #include <utilsException.h>
 #include <utilsExits.h>
-#include <utilsShare.h>
+#include <shareLog.h>
 #include <utilsTime.h>
 
 void TaskConnectionHandler(std::string_view host, std::string_view service, const std::string& sensorData);
@@ -17,7 +17,7 @@ int main()
 	{
 		try
 		{
-			utils::share::tMeasureDuration Measure("Sending measurements...");
+			share::tMeasureDuration Measure("Sending measurements...");
 
 			const std::string SensorData = utils::time::tDateTime::Now().ToString();
 
@@ -40,7 +40,7 @@ int main()
 
 		g_Log.TestMessage("NO CONNECTION");
 
-		utils::share::tMeasureDuration Measure("Sleeping...");
+		share::tMeasureDuration Measure("Sleeping...");
 		std::this_thread::sleep_for(std::chrono::seconds(60)); // [#] pause - it can be in the settings
 	}
 

@@ -1,13 +1,13 @@
 #include "main.h"
 
-#include <utilsShare.h>
-#include <utilsShareMQTT.h>
+#include <shareLog.h>
+#include <shareMQTT.h>
 
 void TaskConnectionHandler(std::string_view host, std::string_view service)
 {
 	constexpr std::uint16_t KeepAlive = 15; // sec. //[#] - TaskTransactionWait(..) should be taken into consideration
 
-	utils::share::tConnection Connection(host, service, KeepAlive);
+	share::tConnection Connection(host, service, KeepAlive);
 
 	const bool SessionPresent = Connection.Connect(mqtt::tSessionStateRequest::Continue, "duper_star_Controller"); // 1883
 	//if (!SessionPresent)
