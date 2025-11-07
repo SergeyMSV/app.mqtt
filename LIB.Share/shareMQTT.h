@@ -7,8 +7,8 @@
 
 #include <libConfig.h>
 
-#ifndef LIB_UTILS_SHARE_MQTT_QUEUE_INCOMING_CAPACITY
-#define LIB_UTILS_SHARE_MQTT_QUEUE_INCOMING_CAPACITY 10
+#ifndef LIB_SHARE_MQTT_QUEUE_INCOMING_CAPACITY
+#define LIB_SHARE_MQTT_QUEUE_INCOMING_CAPACITY 10
 #endif
 
 #include <condition_variable>
@@ -112,7 +112,7 @@ struct tIncomingMessage
 
 class tConnection
 {
-	using tDataSet = multithread::tQueue<tIncomingMessage, LIB_UTILS_SHARE_MQTT_QUEUE_INCOMING_CAPACITY>;
+	using tDataSet = multithread::tQueue<tIncomingMessage, LIB_SHARE_MQTT_QUEUE_INCOMING_CAPACITY>;
 	using tPacketData = std::pair<mqtt::tControlPacketType, std::vector<std::uint8_t>>;
 
 	boost::asio::io_context m_ioc;

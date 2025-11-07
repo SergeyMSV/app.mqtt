@@ -5,10 +5,8 @@
 #include <iostream>
 
 #include <utilsChrono.h>
-#include <utilslog.h>
+#include <utilsLog.h>
 
-namespace utils
-{
 namespace share
 {
 
@@ -19,48 +17,48 @@ public:
 
 	void PacketSent(const std::string& msg, const std::vector<std::uint8_t>& data)
 	{
-		WriteLine(true, utils::log::tColor::LightBlue, msg);
-		WriteHex(true, utils::log::tColor::Blue, "SND", data);
+		WriteLine(true, msg, utils::log::tColor::LightBlue);
+		WriteHex(true, "SND", data, utils::log::tColor::Blue);
 	}
 
 	void PacketReceivedRaw(const std::vector<std::uint8_t>& data)
 	{
-		WriteHex(true, utils::log::tColor::Green, "RCV", data);
+		WriteHex(true, "RCV", data, utils::log::tColor::Green);
 	}
 
 	void PacketReceived(const std::string& msg)
 	{
-		WriteLine(true, utils::log::tColor::LightGreen, msg);
+		WriteLine(true, msg, utils::log::tColor::LightGreen);
 	}
 
 	void MeasureDuration(const std::string& msg)
 	{
-		WriteLine(true, utils::log::tColor::LightYellow, msg);
+		WriteLine(true, msg, utils::log::tColor::LightYellow);
 	}
 
 	void PublishMessage(const std::string& topicName, const std::vector<std::uint8_t>& payload)
 	{
-		WriteHex(true, utils::log::tColor::LightMagenta, topicName, payload);
+		WriteHex(true, topicName, payload, utils::log::tColor::LightMagenta);
 	}
 
 	void Operation(const std::string& msg)
 	{
-		WriteLine(true, utils::log::tColor::Yellow, msg);
+		WriteLine(true, msg, utils::log::tColor::Yellow);
 	}
 
 	void Exception(const std::string& msg)
 	{
-		WriteLine(true, utils::log::tColor::Red, msg);
+		WriteLine(true, msg, utils::log::tColor::Red);
 	}
 
 	void Trace(const std::string& msg)
 	{
-		WriteLine(true, utils::log::tColor::LightCyan, msg);
+		WriteLine(true, msg, utils::log::tColor::LightCyan);
 	}
 
 	void TestMessage(const std::string& msg)
 	{
-		WriteLine(true, utils::log::tColor::White, msg);
+		WriteLine(true, msg, utils::log::tColor::White);
 	}
 
 protected:
@@ -71,12 +69,9 @@ protected:
 };
 
 }
-}
 
-extern utils::share::tLogger g_Log;
+extern share::tLogger g_Log;
 
-namespace utils
-{
 namespace share
 {
 
@@ -100,5 +95,4 @@ public:
 	}
 };
 
-}
 }
