@@ -402,7 +402,7 @@ public:
 	std::string ToString() const override { return m_Content.ToString(); }
 	std::string ToStringControlPacketType() const override { return m_Content.FixedHeader.ToStringControlPacketType(); }
 
-	std::vector<std::uint8_t> ToVector() const { return m_Content.ToVector(); }
+	std::vector<std::uint8_t> ToVector() const override { return m_Content.ToVector(); }
 
 	bool operator==(const tPacketBase& val) const { return m_Content == val.m_Content; }
 };

@@ -1,7 +1,7 @@
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // utilsMultithread
 // 2024-04-16
-// Standard ISO/IEC 114882, C++20
+// C++14
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma once
 
@@ -35,6 +35,13 @@ public:
 		if (m_Queue.size() >= Size)
 			m_Queue.pop_front();
 		m_Queue.push_back(val);
+	}
+	void push_back(T&& val)
+	{
+		std::lock_guard<std::mutex> guard(m_QueueMtx);
+		if (m_Queue.size() >= Size)
+			m_Queue.pop_front();
+		m_Queue.push_back(std::move(val));
 	}
 	void clear()
 	{
