@@ -21,7 +21,9 @@
     <ClCompile Include="..\LIB.Utils\utilsTime.cpp">
       <Filter>LIB.Utils</Filter>
     </ClCompile>
-    <ClCompile Include="..\LIB.Share\shareLog.cpp" />
+    <ClCompile Include="..\LIB.Share\shareLog.cpp">
+      <Filter>LIB.Share</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="LIB.Utils">
@@ -82,6 +84,8 @@
     <ClInclude Include="..\LIB.Utils\utilsMultithread.h">
       <Filter>LIB.Utils</Filter>
     </ClInclude>
-    <ClInclude Include="..\LIB.Share\shareLog.h" />
+    <ClInclude Include="..\LIB.Share\shareLog.h">
+      <Filter>LIB.Share</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
