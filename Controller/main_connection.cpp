@@ -11,7 +11,7 @@ void TaskConnectionHandler(std::string_view host, std::string_view service)
 
 	const bool SessionPresent = Connection.Connect(mqtt::tSessionStateRequest::Continue, "duper_star_Controller"); // 1883
 	//if (!SessionPresent)
-	{
+	//{
 		std::vector<mqtt::tSubscribeTopicFilter> Filters;
 		Filters.emplace_back("SensorA_will", mqtt::tQoS::AtMostOnceDelivery);		// [!] it differs from SensorA
 		Filters.emplace_back("SensorA_DateTime", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
@@ -21,13 +21,31 @@ void TaskConnectionHandler(std::string_view host, std::string_view service)
 		//Filters.emplace_back("SensorA_DateTime_0", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
 		//Filters.emplace_back("SensorA_DateTime_1", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
 		//Filters.emplace_back("SensorA_DateTime_2", mqtt::tQoS::AtMostOnceDelivery);	// [!] it differs from SensorA
+
+		const std::string ClientID_100 = "748C93B777A5BBAB0E6-100";
+
+		//Filters.emplace_back("duperHome/kitchen/opio_DateTime_0", mqtt::tQoS::AtMostOnceDelivery);
+		Filters.emplace_back("opio_DateTime_0", mqtt::tQoS::AtMostOnceDelivery);
+		Filters.emplace_back("opio_DateTime_0a", mqtt::tQoS::AtMostOnceDelivery);
+		Filters.emplace_back("opio_R1", mqtt::tQoS::AtMostOnceDelivery);
+		Filters.emplace_back("opio_R2", mqtt::tQoS::AtMostOnceDelivery);
+		//Filters.emplace_back("748C93B777A5BBAB0E6-100/opio_R3", mqtt::tQoS::AtMostOnceDelivery);
+		Filters.emplace_back(ClientID_100 + "/#", mqtt::tQoS::AtMostOnceDelivery);
+		
+
+		Filters.emplace_back("opio_DateTime_1", mqtt::tQoS::AtLeastOnceDelivery);
+		Filters.emplace_back("opio_DateTime_2", mqtt::tQoS::ExactlyOnceDelivery);
 		Connection.Subscribe(Filters);
-	}
+	//}
 	
-	std::string Settings = "Hello World!";
+	static int SettingsIndex = 1;
+	std::string Settings = "Hello World!" + std::to_string(++SettingsIndex);
 	//Connection.Publish_AtMostOnceDelivery(true, "SensorA_Settings", { Settings.begin(), Settings.end() });
 	//Connection.Publish_AtLeastOnceDelivery(true, false, "SensorA_Settings", { Settings.begin(), Settings.end() });
 	Connection.Publish_ExactlyOnceDelivery(true, false, "SensorA_Settings", { Settings.begin(), Settings.end() });
+	//Connection.Publish_ExactlyOnceDelivery(true, false, "opio_Settings", { Settings.begin(), Settings.end() });
+	Settings = "Hello World! RRR" + std::to_string(++SettingsIndex);
+	Connection.Publish_AtLeastOnceDelivery(true, false, ClientID_100 + "_Settings", { Settings.begin(), Settings.end() });
 
 	/////////////////////////////////////
 	for (int i = 0; i < 1500; ++i)
